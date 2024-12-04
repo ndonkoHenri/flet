@@ -9,6 +9,7 @@ from flet.core.badge import BadgeValue
 from flet.core.blur import Blur
 from flet.core.border import Border
 from flet.core.box import (
+    BoxConstraints,
     BoxDecoration,
     BoxShadow,
     BoxShape,
@@ -45,31 +46,12 @@ from flet.core.types import (
 )
 
 
-class Container(ConstrainedControl, AdaptiveControl):
+class UtilityControl(ConstrainedControl, AdaptiveControl):
     """
-    Container allows to decorate a control with background color and border and position it with padding, margin and alignment.
-
-    Example:
-
-    ```
-    import flet as ft
-
-    def main(page: ft.Page):
-        page.title = "Container"
-
-        c1 = ft.Container(
-            content=ft.Text("Container with background"),
-            bgcolor=ft.colors.AMBER_100,
-            padding=5,
-        )
-        page.add(c1)
-
-    ft.app(target=main)
-    ```
 
     -----
 
-    Online docs: https://flet.dev/docs/controls/container
+    Online docs: https://flet.dev/docs/controls/utilitycontrol
     """
 
     def __init__(
@@ -83,30 +65,18 @@ class Container(ConstrainedControl, AdaptiveControl):
         blend_mode: Optional[BlendMode] = None,
         border: Optional[Border] = None,
         border_radius: BorderRadiusValue = None,
-        image_src: Optional[str] = None,
-        image_src_base64: Optional[str] = None,
-        image_repeat: Optional[ImageRepeat] = None,
-        image_fit: Optional[ImageFit] = None,
-        image_opacity: OptionalNumber = None,
         shape: Optional[BoxShape] = None,
         clip_behavior: Optional[ClipBehavior] = None,
-        ink: Optional[bool] = None,
-        image: Optional[DecorationImage] = None,
-        ink_color: Optional[ColorValue] = None,
         animate: Optional[AnimationValue] = None,
         blur: Union[None, Number, Tuple[Number, Number], Blur] = None,
         shadow: Union[None, BoxShadow, List[BoxShadow]] = None,
-        url: Optional[str] = None,
-        url_target: Optional[UrlTarget] = None,
         theme: Optional[Theme] = None,
         theme_mode: Optional[ThemeMode] = None,
         color_filter: Optional[ColorFilter] = None,
+        size_constraints: Optional[BoxConstraints] = None,
         ignore_interactions: Optional[bool] = None,
+        background_decoration: Optional[BoxDecoration] = None,
         foreground_decoration: Optional[BoxDecoration] = None,
-        on_click: OptionalControlEventCallable = None,
-        on_tap_down: OptionalEventCallable["ContainerTapEvent"] = None,
-        on_long_press: OptionalControlEventCallable = None,
-        on_hover: OptionalControlEventCallable = None,
         #
         # ConstrainedControl and AdaptiveControl
         #
@@ -176,9 +146,6 @@ class Container(ConstrainedControl, AdaptiveControl):
 
         AdaptiveControl.__init__(self, adaptive=adaptive)
 
-        self.__on_tap_down = EventHandler(lambda e: ContainerTapEvent(e))
-        self._add_event_handler("tap_down", self.__on_tap_down.get_handler())
-
         self.content = content
         self.padding = padding
         self.margin = margin
@@ -188,57 +155,31 @@ class Container(ConstrainedControl, AdaptiveControl):
         self.blend_mode = blend_mode
         self.border = border
         self.border_radius = border_radius
-        self.image_src = image_src
-        self.image_src_base64 = image_src_base64
-        self.image_repeat = image_repeat
-        self.image_fit = image_fit
-        self.image_opacity = image_opacity
         self.shape = shape
         self.clip_behavior = clip_behavior
-        self.ink = ink
-        self.ink_color = ink_color
         self.animate = animate
         self.blur = blur
         self.shadow = shadow
-        self.url = url
-        self.url_target = url_target
         self.theme = theme
         self.theme_mode = theme_mode
         self.color_filter = color_filter
         self.ignore_interactions = ignore_interactions
-        self.on_click = on_click
-        self.on_tap_down = on_tap_down
-        self.on_long_press = on_long_press
-        self.on_hover = on_hover
-        self.image = image
         self.foreground_decoration = foreground_decoration
+        self.size_constraints = size_constraints
 
     def _get_control_name(self):
-        return "container"
+        return "utility"
 
     def before_update(self):
         super().before_update()
-        assert (
-            self.__blend_mode is None
-            or self.__gradient is not None
-            or self.bgcolor is not None
-        ), "blend_mode applies to bgcolor or gradient, but no bgcolor or gradient was provided"
-        assert (
-            self.__shape != BoxShape.CIRCLE or self.__border_radius is None
-        ), "border_radius is not supported with shape=BoxShape.CIRCLE"
-        self._set_attr_json("borderRadius", self.__border_radius)
-        self._set_attr_json("border", self.__border)
-        self._set_attr_json("margin", self.__margin)
         self._set_attr_json("padding", self.__padding)
         self._set_attr_json("alignment", self.__alignment)
-        self._set_attr_json("gradient", self.__gradient)
-        self._set_attr_json("animate", self.__animate)
         self._set_attr_json("blur", self.__blur)
         self._set_attr_json("shadow", self.__shadow if self.__shadow else None)
         self._set_attr_json("theme", self.__theme)
         self._set_attr_json("colorFilter", self.__color_filter)
-        self._set_attr_json("image", self.__image)
         self._set_attr_json("foregroundDecoration", self.__foreground_decoration)
+        self._set_attr_json("sizeConstraints", self.__size_constraints)
 
     def _get_children(self):
         children = []
@@ -270,15 +211,6 @@ class Container(ConstrainedControl, AdaptiveControl):
     def padding(self, value: PaddingValue):
         self.__padding = value
 
-    # image
-    @property
-    def image(self) -> Optional[DecorationImage]:
-        return self.__image
-
-    @image.setter
-    def image(self, value: Optional[DecorationImage]):
-        self.__image = value
-
     # foreground_decoration
     @property
     def foreground_decoration(self) -> Optional[BoxDecoration]:
@@ -297,24 +229,14 @@ class Container(ConstrainedControl, AdaptiveControl):
     def margin(self, value: MarginValue):
         self.__margin = value
 
-    # bgcolor
+    # size_constraints
     @property
-    def bgcolor(self):
-        return self.__bgcolor
+    def size_constraints(self) -> Optional[BoxConstraints]:
+        return self.__size_constraints
 
-    @bgcolor.setter
-    def bgcolor(self, value: Optional[ColorValue]):
-        self.__bgcolor = value
-        self._set_enum_attr("bgColor", value, ColorEnums)
-
-    # gradient
-    @property
-    def gradient(self) -> Optional[Gradient]:
-        return self.__gradient
-
-    @gradient.setter
-    def gradient(self, value: Optional[Gradient]):
-        self.__gradient = value
+    @size_constraints.setter
+    def size_constraints(self, value: Optional[BoxConstraints]):
+        self.__size_constraints = value
 
     # blend_mode
     @property
@@ -328,17 +250,13 @@ class Container(ConstrainedControl, AdaptiveControl):
 
     # blur
     @property
-    def blur(
-        self,
-    ) -> Union[None, float, int, Tuple[Union[float, int], Union[float, int]], Blur]:
+    def blur(self) -> Union[None, Number, Tuple[Number, Number], Blur]:
         return self.__blur
 
     @blur.setter
     def blur(
         self,
-        value: Union[
-            None, float, int, Tuple[Union[float, int], Union[float, int]], Blur
-        ],
+        value: Union[None, Number, Tuple[Number, Number], Blur],
     ):
         self.__blur = value
 
@@ -378,50 +296,6 @@ class Container(ConstrainedControl, AdaptiveControl):
     def border_radius(self, value: BorderRadiusValue):
         self.__border_radius = value
 
-    # image_src
-    @property
-    def image_src(self) -> Optional[str]:
-        warnings.warn(
-            f"image_src is deprecated since version 0.24.0 "
-            f"and will be removed in version 0.27.0. Use Container.image.src instead.",
-            category=DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._get_attr("imageSrc")
-
-    @image_src.setter
-    def image_src(self, value: Optional[str]):
-        self._set_attr("imageSrc", value)
-        if value is not None:
-            warnings.warn(
-                f"image_src is deprecated since version 0.24.0 "
-                f"and will be removed in version 0.27.0. Use Container.image.src instead.",
-                category=DeprecationWarning,
-                stacklevel=2,
-            )
-
-    # image_src_base64
-    @property
-    def image_src_base64(self) -> Optional[str]:
-        warnings.warn(
-            f"image_src_base64 is deprecated since version 0.24.0 "
-            f"and will be removed in version 0.27.0. Use Container.image.src_base64 instead.",
-            category=DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._get_attr("imageSrcBase64")
-
-    @image_src_base64.setter
-    def image_src_base64(self, value: Optional[str]):
-        self._set_attr("imageSrcBase64", value)
-        if value is not None:
-            warnings.warn(
-                f"image_src_base64 is deprecated since version 0.24.0 "
-                f"and will be removed in version 0.27.0. Use Container.image.src_base64 instead.",
-                category=DeprecationWarning,
-                stacklevel=2,
-            )
-
     # ignore_interactions
     @property
     def ignore_interactions(self) -> Optional[bool]:
@@ -430,74 +304,6 @@ class Container(ConstrainedControl, AdaptiveControl):
     @ignore_interactions.setter
     def ignore_interactions(self, value: Optional[str]):
         self._set_attr("ignoreInteractions", value)
-
-    # image_fit
-    @property
-    def image_fit(self) -> Optional[ImageFit]:
-        warnings.warn(
-            f"image_fit is deprecated since version 0.24.0 "
-            f"and will be removed in version 0.27.0. Use Container.image.fit instead.",
-            category=DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.__image_fit
-
-    @image_fit.setter
-    def image_fit(self, value: Optional[ImageFit]):
-        self.__image_fit = value
-        self._set_enum_attr("imageFit", value, ImageFit)
-        if value is not None:
-            warnings.warn(
-                f"image_fit is deprecated since version 0.24.0 "
-                f"and will be removed in version 0.27.0. Use Container.image.fit instead.",
-                category=DeprecationWarning,
-                stacklevel=2,
-            )
-
-    # image_repeat
-    @property
-    def image_repeat(self) -> Optional[ImageRepeat]:
-        warnings.warn(
-            f"image_repeat is deprecated since version 0.24.0 "
-            f"and will be removed in version 0.27.0. Use Container.image.repeat instead.",
-            category=DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.__image_repeat
-
-    @image_repeat.setter
-    def image_repeat(self, value: Optional[ImageRepeat]):
-        self.__image_repeat = value
-        self._set_enum_attr("imageRepeat", value, ImageRepeat)
-        if value is not None:
-            warnings.warn(
-                f"image_repeat is deprecated since version 0.24.0 "
-                f"and will be removed in version 0.27.0. Use Container.image.repeat instead.",
-                category=DeprecationWarning,
-                stacklevel=2,
-            )
-
-    # image_opacity
-    @property
-    def image_opacity(self) -> float:
-        warnings.warn(
-            f"image_opacity is deprecated since version 0.24.0 "
-            f"and will be removed in version 0.27.0. Use Container.image.opacity instead.",
-            category=DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._get_attr("imageOpacity", data_type="float", def_value=1.0)
-
-    @image_opacity.setter
-    def image_opacity(self, value: OptionalNumber):
-        self._set_attr("imageOpacity", value)
-        if value is not None:
-            warnings.warn(
-                f"image_opacity is deprecated since version 0.24.0 "
-                f"and will be removed in version 0.27.0. Use Container.image.opacity instead.",
-                category=DeprecationWarning,
-                stacklevel=2,
-            )
 
     # content
     @property
@@ -527,25 +333,6 @@ class Container(ConstrainedControl, AdaptiveControl):
     def clip_behavior(self, value: Optional[ClipBehavior]):
         self.__clip_behavior = value
         self._set_enum_attr("clipBehavior", value, ClipBehavior)
-
-    # ink
-    @property
-    def ink(self) -> bool:
-        return self._get_attr("ink", data_type="bool", def_value=False)
-
-    @ink.setter
-    def ink(self, value: Optional[bool]):
-        self._set_attr("ink", value)
-
-    # ink color
-    @property
-    def ink_color(self) -> Optional[ColorValue]:
-        return self.__ink_color
-
-    @ink_color.setter
-    def ink_color(self, value: Optional[ColorValue]):
-        self.__ink_color = value
-        self._set_enum_attr("inkColor", value, ColorEnums)
 
     # animate
     @property
@@ -593,53 +380,3 @@ class Container(ConstrainedControl, AdaptiveControl):
     def theme_mode(self, value: Optional[ThemeMode]):
         self.__theme_mode = value
         self._set_enum_attr("themeMode", value, ThemeMode)
-
-    # on_click
-    @property
-    def on_click(self):
-        return self._get_event_handler("click")
-
-    @on_click.setter
-    def on_click(self, handler: OptionalControlEventCallable):
-        self._add_event_handler("click", handler)
-        self._set_attr("onClick", True if handler is not None else None)
-
-    # on_tap_down
-    @property
-    def on_tap_down(self) -> OptionalEventCallable["ContainerTapEvent"]:
-        return self.__on_tap_down.handler
-
-    @on_tap_down.setter
-    def on_tap_down(self, handler: OptionalEventCallable["ContainerTapEvent"]):
-        self.__on_tap_down.handler = handler
-        self._set_attr("onTapDown", True if handler is not None else None)
-
-    # on_long_press
-    @property
-    def on_long_press(self):
-        return self._get_event_handler("long_press")
-
-    @on_long_press.setter
-    def on_long_press(self, handler: OptionalControlEventCallable):
-        self._add_event_handler("long_press", handler)
-        self._set_attr("onLongPress", True if handler is not None else None)
-
-    # on_hover
-    @property
-    def on_hover(self):
-        return self._get_event_handler("hover")
-
-    @on_hover.setter
-    def on_hover(self, handler: OptionalControlEventCallable):
-        self._add_event_handler("hover", handler)
-        self._set_attr("onHover", True if handler is not None else None)
-
-
-class ContainerTapEvent(ControlEvent):
-    def __init__(self, e: ControlEvent):
-        super().__init__(e.target, e.name, e.data, e.control, e.page)
-        d = json.loads(e.data)
-        self.local_x: float = d.get("lx")
-        self.local_y: float = d.get("ly")
-        self.global_x: float = d.get("gx")
-        self.global_y: float = d.get("gy")

@@ -428,6 +428,7 @@ from flet.core.types import (
     WebRenderer,
 )
 from flet.core.user_control import UserControl
+from flet.core.utility_control import UtilityControl
 from flet.core.vertical_divider import VerticalDivider
 from flet.core.video import (
     PlaylistMode,

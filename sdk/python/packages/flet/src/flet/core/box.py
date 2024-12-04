@@ -78,6 +78,16 @@ class BoxDecoration:
     shape: Optional[BoxShape] = None
     blend_mode: Optional[BlendMode] = None
 
+    def __post_init__(self):
+        assert (
+            self.blend_mode is None
+            or self.gradient is not None
+            or self.bgcolor is not None
+        ), "blend_mode applies to bgcolor or gradient, but no bgcolor or gradient was provided"
+        assert (
+            self.shape != BoxShape.CIRCLE or self.border_radius is None
+        ), "border_radius is not supported with shape=BoxShape.CIRCLE"
+
 
 @dataclass
 class BoxConstraints:
