@@ -811,26 +811,26 @@ class Command(BaseCommand):
         assert self.get_pyproject
 
         base_url = (
-            (
-                self.options.base_url
-                or cast(str, self.get_pyproject("tool.flet.web.base_url"))
-                or "/"
+            cast(
+                str,
+                self.get_pyproject(
+                    "tool.flet.web.base_url", option=self.options.base_url, default="/"
+                ),
             )
             .strip("/")
             .strip()
         )
-        project_name_orig = (
-            self.options.project_name
-            or self.get_pyproject("project.name")
-            or self.get_pyproject("tool.poetry.name")
-            or self.python_app_path.name
+        project_name_orig = self.get_pyproject(
+            ["project.name", "tool.poetry.name"],
+            option=self.options.project_name,
+            default=self.python_app_path.name,
         )
         project_name_slug = slugify(cast(str, project_name_orig))
         project_name = project_name_slug.replace("-", "_")
-        product_name = (
-            self.options.product_name
-            or self.get_pyproject("tool.flet.product")
-            or project_name_orig
+        product_name = self.get_pyproject(
+            "tool.flet.product",
+            option=self.options.product_name,
+            default=project_name_orig,
         )
         self.flutter_dependencies = self.get_flutter_dependencies()
         if self.verbose > 0:
@@ -838,16 +838,6 @@ class Command(BaseCommand):
                 f"Custom Flutter dependencies: {self.flutter_dependencies}",
                 style=verbose1_style,
             )
-
-        split_per_abi = (
-            self.options.split_per_abi
-            if self.options.split_per_abi is not None
-            else (
-                self.get_pyproject("tool.flet.android.split_per_abi")
-                if self.get_pyproject("tool.flet.android.split_per_abi") is not None
-                else False
-            )
-        )
 
         info_plist = {}
         macos_entitlements = {
@@ -863,7 +853,7 @@ class Command(BaseCommand):
         }
         android_meta_data = {"io.flutter.embedding.android.EnableImpeller": "false"}
 
-        # merge values from "--permissions" arg:
+        # merge values from "--permissions" arg
         for p in (
             self.options.permissions
             or self.get_pyproject("tool.flet.permissions")
@@ -883,12 +873,12 @@ class Command(BaseCommand):
 
         info_plist = merge_dict(
             info_plist,
-            (
-                self.get_pyproject("tool.flet.macos.info")
+            self.get_pyproject(
+                "tool.flet.macos.info"
                 if self.package_platform == "Darwin"
-                else self.get_pyproject("tool.flet.ios.info")
-            )
-            or {},
+                else "tool.flet.ios.info",
+                default={},
+            ),
         )
 
         # parse --info-plist
@@ -903,7 +893,7 @@ class Command(BaseCommand):
 
         macos_entitlements = merge_dict(
             macos_entitlements,
-            self.get_pyproject("tool.flet.macos.entitlement") or {},
+            self.get_pyproject("tool.flet.macos.entitlement", default={}),
         )
 
         # parse --macos-entitlements
@@ -916,7 +906,7 @@ class Command(BaseCommand):
 
         android_permissions = merge_dict(
             android_permissions,
-            self.get_pyproject("tool.flet.android.permission") or {},
+            self.get_pyproject("tool.flet.android.permission", default={}),
         )
 
         # parse --android-permissions
@@ -929,7 +919,7 @@ class Command(BaseCommand):
 
         android_features = merge_dict(
             android_features,
-            self.get_pyproject("tool.flet.android.feature") or {},
+            self.get_pyproject("tool.flet.android.feature", default={}),
         )
 
         # parse --android-features
@@ -942,7 +932,7 @@ class Command(BaseCommand):
 
         android_meta_data = merge_dict(
             android_meta_data,
-            self.get_pyproject("tool.flet.android.meta_data") or {},
+            self.get_pyproject("tool.flet.android.meta_data", default={}),
         )
 
         # parse --android-meta-data
@@ -953,76 +943,78 @@ class Command(BaseCommand):
             else:
                 self.cleanup(1, f"Invalid Android meta-data option: {p}")
 
-        deep_linking_scheme = (
-            self.get_pyproject("tool.flet.ios.deep_linking.scheme")
+        deep_linking_scheme = self.get_pyproject(
+            "tool.flet.ios.deep_linking.scheme"
             if self.package_platform == "iOS"
-            else (
-                self.get_pyproject("tool.flet.android.deep_linking.scheme")
-                if self.package_platform == "Android"
-                else self.get_pyproject("tool.flet.deep_linking.scheme")
-            )
+            else "tool.flet.android.deep_linking.scheme"
+            if self.package_platform == "Android"
+            else "tool.flet.deep_linking.scheme",
+            option=self.options.deep_linking_scheme,
         )
 
-        deep_linking_host = (
-            self.get_pyproject("tool.flet.ios.deep_linking.host")
+        deep_linking_host = self.get_pyproject(
+            "tool.flet.ios.deep_linking.host"
             if self.package_platform == "iOS"
-            else (
-                self.get_pyproject("tool.flet.android.deep_linking.host")
-                if self.package_platform == "Android"
-                else self.get_pyproject("tool.flet.deep_linking.host")
-            )
+            else "tool.flet.android.deep_linking.host"
+            if self.package_platform == "Android"
+            else "tool.flet.deep_linking.host",
+            option=self.options.deep_linking_host,
         )
-
-        if self.options.deep_linking_scheme and self.options.deep_linking_host:
-            deep_linking_scheme = self.options.deep_linking_scheme
-            deep_linking_host = self.options.deep_linking_host
 
         assert self.flutter_dir
         self.template_data = {
             "out_dir": self.flutter_dir.name,
             "sep": os.sep,
             "python_module_name": self.python_module_name,
-            "route_url_strategy": (
-                self.options.route_url_strategy
-                or self.get_pyproject("tool.flet.web.route_url_strategy")
-                or "path"
+            "route_url_strategy": self.get_pyproject(
+                "tool.flet.web.route_url_strategy",
+                option=self.options.route_url_strategy,
+                default="path",
             ),
-            "web_renderer": (
-                self.options.web_renderer
-                or self.get_pyproject("tool.flet.web.renderer")
-                or "canvaskit"
+            "web_renderer": self.get_pyproject(
+                "tool.flet.web.web.renderer",
+                option=self.options.web_renderer,
+                default="canvaskit",
             ),
             "use_color_emoji": (
                 "true"
-                if self.options.use_color_emoji
-                or self.get_pyproject("tool.flet.web.use_color_emoji")
+                if self.get_pyproject(
+                    "tool.flet.web.use_color_emoji", option=self.options.use_color_emoji
+                )
                 else "false"
             ),
-            "pwa_background_color": (
-                self.options.pwa_background_color
-                or self.get_pyproject("tool.flet.web.pwa_background_color")
+            "pwa_background_color": self.get_pyproject(
+                "tool.flet.web.pwa_background_color",
+                option=self.options.pwa_background_color,
             ),
-            "pwa_theme_color": (
-                self.options.pwa_theme_color
-                or self.get_pyproject("tool.flet.web.pwa_theme_color")
+            "pwa_theme_color": self.get_pyproject(
+                "tool.flet.web.pwa_theme_color", option=self.options.pwa_theme_color
             ),
             "base_url": f"/{base_url}/" if base_url else "/",
-            "split_per_abi": split_per_abi,
+            "split_per_abi": self.get_pyproject(
+                "tool.flet.android.split_per_abi",
+                option=self.options.split_per_abi,
+                default=False,
+            ),
             "project_name": project_name,
             "project_name_slug": project_name_slug,
             "product_name": product_name,
-            "description": (
-                self.options.description
-                or self.get_pyproject("project.description")
-                or self.get_pyproject("tool.poetry.description")
+            "description": self.get_pyproject(
+                ["project.description", "tool.poetry.description"],
+                option=self.options.description,
             ),
-            "org_name": self.options.org_name or self.get_pyproject("tool.flet.org"),
-            "company_name": (
-                self.options.company_name or self.get_pyproject("tool.flet.company")
+            "org_name": self.get_pyproject(
+                "tool.flet.org", option=self.options.org_name
             ),
-            "copyright": self.options.copyright
-            or self.get_pyproject("tool.flet.copyright"),
-            "team_id": self.options.team_id or self.get_pyproject("tool.flet.ios.team"),
+            "company_name": self.get_pyproject(
+                "tool.flet.company", option=self.options.company_name
+            ),
+            "copyright": self.get_pyproject(
+                "tool.flet.copyright", option=self.options.copyright
+            ),
+            "team_id": self.get_pyproject(
+                "tool.flet.ios.team", option=self.options.team_id
+            ),
             "options": {
                 "info_plist": info_plist,
                 "macos_entitlements": macos_entitlements,
@@ -1042,8 +1034,8 @@ class Command(BaseCommand):
         assert self.options
         assert self.get_pyproject
 
-        flutter_dependencies = (
-            self.get_pyproject("tool.flet.flutter.dependencies") or {}
+        flutter_dependencies = self.get_pyproject(
+            "tool.flet.flutter.dependencies", default={}
         )
         if isinstance(flutter_dependencies, list):
             flutter_dependencies = {d: "any" for d in flutter_dependencies}
@@ -1061,22 +1053,22 @@ class Command(BaseCommand):
         assert self.flutter_dir
         assert self.template_data
 
-        template_url = (
-            self.options.template
-            or self.get_pyproject("tool.flet.template.url")
-            or DEFAULT_TEMPLATE_URL
+        template_url = self.get_pyproject(
+            "tool.flet.template.url",
+            option=self.options.template,
+            default=DEFAULT_TEMPLATE_URL,
         )
-        template_ref = self.options.template_ref or self.get_pyproject(
-            "tool.flet.template.ref"
-        )
-        if not template_ref:
-            template_ref = (
+        template_ref = self.get_pyproject(
+            "tool.flet.template.ref",
+            option=self.options.template_ref,
+            default=(
                 version.Version(flet.version.version).base_version
                 if flet.version.version
                 else update_version()
-            )
-        template_dir = self.options.template_dir or self.get_pyproject(
-            "tool.flet.template.dir"
+            ),
+        )
+        template_dir = self.get_pyproject(
+            "tool.flet.template.dir", option=self.options.template_dir
         )
 
         # if options.clear_cache is set, delete any existing Flutter bootstrap project directory
@@ -1129,7 +1121,8 @@ class Command(BaseCommand):
             pubspec["dependencies"][k] = v
 
         pubspec = merge_dict(
-            pubspec, self.get_pyproject("tool.flet.flutter.pubspec") or {}
+            pubspec,
+            self.get_pyproject("tool.flet.flutter.pubspec") or {},
         )
 
         # make sure project_name is not named as any of the dependencies
@@ -1308,8 +1301,8 @@ class Command(BaseCommand):
             if splash_color:
                 pubspec["flutter_native_splash"]["color"] = splash_color
                 pubspec["flutter_native_splash"]["android_12"]["color"] = splash_color
-            splash_dark_color = self.options.splash_dark_color or self.get_pyproject(
-                "tool.flet.splash.dark_color"
+            splash_dark_color = self.get_pyproject(
+                "tool.flet.splash.dark_color", option=self.options.splash_dark_color
             )
             if splash_dark_color:
                 pubspec["flutter_native_splash"]["color_dark"] = splash_dark_color
@@ -1317,10 +1310,11 @@ class Command(BaseCommand):
                     "color_dark"
                 ] = splash_dark_color
 
-        adaptive_icon_background = (
-            self.options.android_adaptive_icon_background
-            or self.get_pyproject("tool.flet.android.adaptive_icon_background")
+        adaptive_icon_background = self.get_pyproject(
+            "tool.flet.android.adaptive_icon_background",
+            option=self.options.android_adaptive_icon_background,
         )
+
         if adaptive_icon_background:
             pubspec["flutter_launcher_icons"][
                 "adaptive_icon_background"
@@ -1330,29 +1324,17 @@ class Command(BaseCommand):
         pubspec["flutter_native_splash"]["web"] = (
             not self.options.no_web_splash
             if self.options.no_web_splash is not None
-            else (
-                self.get_pyproject("tool.flet.splash.web")
-                if self.get_pyproject("tool.flet.splash.web") is not None
-                else True
-            )
+            else self.get_pyproject("tool.flet.splash.web", default=True)
         )
         pubspec["flutter_native_splash"]["ios"] = (
             not self.options.no_ios_splash
             if self.options.no_ios_splash is not None
-            else (
-                self.get_pyproject("tool.flet.splash.ios")
-                if self.get_pyproject("tool.flet.splash.ios") is not None
-                else True
-            )
+            else self.get_pyproject("tool.flet.splash.ios", default=True)
         )
         pubspec["flutter_native_splash"]["android"] = (
             not self.options.no_android_splash
             if self.options.no_android_splash is not None
-            else (
-                self.get_pyproject("tool.flet.splash.android")
-                if self.get_pyproject("tool.flet.splash.android") is not None
-                else True
-            )
+            else self.get_pyproject("tool.flet.splash.android", default=True)
         )
 
         # save pubspec.yaml
@@ -1431,11 +1413,11 @@ class Command(BaseCommand):
             self.package_platform,
         ]
 
-        target_arch = (
-            self.options.target_arch
-            or self.get_pyproject(f"tool.flet.{self.config_platform}.build_arch")
-            or self.get_pyproject("tool.flet.build_arch")
+        target_arch = self.get_pyproject(
+            [f"tool.flet.{self.config_platform}.build_arch", "tool.flet.build_arch"],
+            option=self.options.target_arch,
         )
+
         if target_arch:
             package_args.extend(["--arch", self.options.target_arch])
 
@@ -1488,8 +1470,8 @@ class Command(BaseCommand):
         # exclude
         exclude_list = ["build"]
 
-        app_exclude = self.options.exclude or self.get_pyproject(
-            "tool.flet.app.exclude"
+        app_exclude = self.get_pyproject(
+            "tool.flet.app.exclude", option=self.options.exclude
         )
         if app_exclude:
             exclude_list.extend(app_exclude)
@@ -1498,36 +1480,22 @@ class Command(BaseCommand):
             exclude_list.append("assets")
         package_args.extend(["--exclude", ",".join(exclude_list)])
 
-        if (
-            self.options.compile_app
-            if self.options.compile_app is not None
-            else (
-                self.get_pyproject("tool.flet.compile.app")
-                if self.get_pyproject("tool.flet.compile.app") is not None
-                else False
-            )
+        if self.get_pyproject(
+            "tool.flet.compile.app", option=self.options.compile_app, default=False
         ):
             package_args.append("--compile-app")
 
-        if (
-            self.options.compile_packages
-            if self.options.compile_packages is not None
-            else (
-                self.get_pyproject("tool.flet.compile.packages")
-                if self.get_pyproject("tool.flet.compile.packages") is not None
-                else False
-            )
+        if self.get_pyproject(
+            "tool.flet.compile.packages",
+            option=self.options.compile_packages,
+            default=False,
         ):
             package_args.append("--compile-packages")
 
-        if (
-            self.options.cleanup_on_compile
-            if self.options.cleanup_on_compile is not None
-            else (
-                self.get_pyproject("tool.flet.compile.cleanup")
-                if self.get_pyproject("tool.flet.compile.cleanup") is not None
-                else True
-            )
+        if self.get_pyproject(
+            "tool.flet.compile.cleanup",
+            option=self.options.cleanup_on_compile,
+            default=True,
         ):
             package_args.append("--cleanup")
 
@@ -1608,9 +1576,9 @@ class Command(BaseCommand):
                 self.build_dir / "site-packages"
             )
 
-        android_signing_key_store = (
-            self.options.android_signing_key_store
-            or self.get_pyproject("tool.flet.android.signing.key_store")
+        android_signing_key_store = self.get_pyproject(
+            "tool.flet.android.signing.key_store",
+            option=self.options.android_signing_key_store,
         )
         if android_signing_key_store:
             build_env["FLET_ANDROID_SIGNING_KEY_STORE"] = android_signing_key_store
@@ -1630,9 +1598,9 @@ class Command(BaseCommand):
                 key_password if key_password else key_store_password
             )
 
-        android_signing_key_alias = (
-            self.options.android_signing_key_alias
-            or self.get_pyproject("tool.flet.android.signing.key_alias")
+        android_signing_key_alias = self.get_pyproject(
+            "tool.flet.android.signing.key_alias",
+            option=self.options.android_signing_key_alias,
         )
         if android_signing_key_alias:
             build_env["FLET_ANDROID_SIGNING_KEY_ALIAS"] = android_signing_key_alias
@@ -1643,16 +1611,15 @@ class Command(BaseCommand):
         if self.target_platform in ["ipa"] and not self.template_data["team_id"]:
             build_args.append("--no-codesign")
 
-        build_number = self.options.build_number or self.get_pyproject(
-            "tool.flet.build_number"
+        build_number = self.get_pyproject(
+            "tool.flet.build_number", option=self.options.build_number
         )
         if build_number:
             build_args.extend(["--build-number", str(build_number)])
 
-        build_version = (
-            self.options.build_version
-            or self.get_pyproject("project.version")
-            or self.get_pyproject("tool.poetry.version")
+        build_version = self.get_pyproject(
+            ["project.version", "tool.poetry.version"],
+            option=self.options.build_version,
         )
         if build_version:
             build_args.extend(["--build-name", build_version])
