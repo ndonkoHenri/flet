@@ -1145,7 +1145,7 @@ class Command(BaseCommand):
         assert self.get_pyproject
         assert self.pubspec_path
 
-        self.status.update(f"[bold blue]Customizing app icons and splash images...")
+        self.status.update("[bold blue]Customizing app icons and splash images...")
 
         with open(self.pubspec_path, encoding="utf8") as f:
             pubspec = yaml.safe_load(f)
@@ -1157,150 +1157,146 @@ class Command(BaseCommand):
             images_path.mkdir(exist_ok=True)
 
             def fallback_image(yaml_path: str, images: list):
+                """Set a fallback image path in pubspec.yaml"""
                 d = pubspec
-                pp = yaml_path.split("/")
-                for p in pp[:-1]:
-                    d = d[p]
+                keys = yaml_path.split("/")
+                for key in keys[:-1]:
+                    d = d[key]
                 for image in images:
                     if image:
-                        d[pp[-1]] = f"{images_dir}/{image}"
+                        d[keys[-1]] = f"{images_dir}/{image}"
                         return
 
-            # copy icons
-            default_icon = self.copy_icon_image(self.assets_path, images_path, "icon")
-            ios_icon = self.copy_icon_image(self.assets_path, images_path, "icon_ios")
-            android_icon = self.copy_icon_image(
-                self.assets_path, images_path, "icon_android"
-            )
-            web_icon = self.copy_icon_image(self.assets_path, images_path, "icon_web")
-            windows_icon = self.copy_icon_image(
-                self.assets_path, images_path, "icon_windows"
-            )
-            macos_icon = self.copy_icon_image(
-                self.assets_path, images_path, "icon_macos"
-            )
+            # Copy icons
+            icons = {
+                "default": "icon",
+                "ios": "icon_ios",
+                "android": "icon_android",
+                "web": "icon_web",
+                "windows": "icon_windows",
+                "macos": "icon_macos",
+            }
+            copied_icons = {
+                k: self.copy_icon_image(self.assets_path, images_path, v)
+                for k, v in icons.items()
+            }
 
-            fallback_image("flutter_launcher_icons/image_path", [default_icon])
-            fallback_image(
-                "flutter_launcher_icons/image_path_ios", [ios_icon, default_icon]
-            )
-            fallback_image(
-                "flutter_launcher_icons/image_path_android",
-                [android_icon, default_icon],
-            )
-            fallback_image(
-                "flutter_launcher_icons/adaptive_icon_foreground",
-                [android_icon, default_icon],
-            )
-            fallback_image(
-                "flutter_launcher_icons/web/image_path", [web_icon, default_icon]
-            )
-            fallback_image(
-                "flutter_launcher_icons/windows/image_path",
-                [windows_icon, default_icon],
-            )
-            fallback_image(
-                "flutter_launcher_icons/macos/image_path",
-                [macos_icon, default_icon],
-            )
+            fallback_paths = {
+                "flutter_launcher_icons/image_path": [copied_icons["default"]],
+                "flutter_launcher_icons/image_path_ios": [
+                    copied_icons["ios"],
+                    copied_icons["default"],
+                ],
+                "flutter_launcher_icons/image_path_android": [
+                    copied_icons["android"],
+                    copied_icons["default"],
+                ],
+                "flutter_launcher_icons/adaptive_icon_foreground": [
+                    copied_icons["android"],
+                    copied_icons["default"],
+                ],
+                "flutter_launcher_icons/web/image_path": [
+                    copied_icons["web"],
+                    copied_icons["default"],
+                ],
+                "flutter_launcher_icons/windows/image_path": [
+                    copied_icons["windows"],
+                    copied_icons["default"],
+                ],
+                "flutter_launcher_icons/macos/image_path": [
+                    copied_icons["macos"],
+                    copied_icons["default"],
+                ],
+            }
+            for path, images in fallback_paths.items():
+                fallback_image(path, images)
 
-            # copy splash images
-            default_splash = self.copy_icon_image(
-                self.assets_path, images_path, "splash"
-            )
-            default_dark_splash = self.copy_icon_image(
-                self.assets_path, images_path, "splash_dark"
-            )
-            ios_splash = self.copy_icon_image(
-                self.assets_path, images_path, "splash_ios"
-            )
-            ios_dark_splash = self.copy_icon_image(
-                self.assets_path, images_path, "splash_dark_ios"
-            )
-            android_splash = self.copy_icon_image(
-                self.assets_path, images_path, "splash_android"
-            )
-            android_dark_splash = self.copy_icon_image(
-                self.assets_path, images_path, "splash_dark_android"
-            )
-            web_splash = self.copy_icon_image(
-                self.assets_path, images_path, "splash_web"
-            )
-            web_dark_splash = self.copy_icon_image(
-                self.assets_path, images_path, "splash_dark_web"
-            )
-            fallback_image(
-                "flutter_native_splash/image",
-                [default_splash, default_icon],
-            )
-            fallback_image(
-                "flutter_native_splash/image_dark",
-                [default_dark_splash, default_splash, default_icon],
-            )
-            fallback_image(
-                "flutter_native_splash/image_ios",
-                [ios_splash, default_splash, default_icon],
-            )
-            fallback_image(
-                "flutter_native_splash/image_dark_ios",
-                [
-                    ios_dark_splash,
-                    default_dark_splash,
-                    ios_splash,
-                    default_splash,
-                    default_icon,
-                ],
-            )
-            fallback_image(
-                "flutter_native_splash/image_android",
-                [android_splash, default_splash, default_icon],
-            )
-            fallback_image(
-                "flutter_native_splash/android_12/image",
-                [android_splash, default_splash, default_icon],
-            )
-            fallback_image(
-                "flutter_native_splash/image_dark_android",
-                [
-                    android_dark_splash,
-                    default_dark_splash,
-                    android_splash,
-                    default_splash,
-                    default_icon,
-                ],
-            )
-            fallback_image(
-                "flutter_native_splash/android_12/image_dark",
-                [
-                    android_dark_splash,
-                    default_dark_splash,
-                    android_splash,
-                    default_splash,
-                    default_icon,
-                ],
-            )
-            fallback_image(
-                "flutter_native_splash/image_web",
-                [web_splash, default_splash, default_icon],
-            )
-            fallback_image(
-                "flutter_native_splash/image_dark_web",
-                [
-                    web_dark_splash,
-                    default_dark_splash,
-                    web_splash,
-                    default_splash,
-                    default_icon,
-                ],
-            )
+            # Copy splash images
+            splash_images = {
+                "default": "splash",
+                "default_dark": "splash_dark",
+                "ios": "splash_ios",
+                "ios_dark": "splash_dark_ios",
+                "android": "splash_android",
+                "android_dark": "splash_dark_android",
+                "web": "splash_web",
+                "web_dark": "splash_dark_web",
+            }
+            copied_splash_images = {
+                k: self.copy_icon_image(self.assets_path, images_path, v)
+                for k, v in splash_images.items()
+            }
 
-            # splash colors
-            splash_color = self.options.splash_color or self.get_pyproject(
-                "tool.flet.splash.color"
+            fallback_paths_splash = {
+                "flutter_native_splash/image": [
+                    copied_splash_images["default"],
+                    copied_icons["default"],
+                ],
+                "flutter_native_splash/image_dark": [
+                    copied_splash_images["default_dark"],
+                    copied_splash_images["default"],
+                    copied_icons["default"],
+                ],
+                "flutter_native_splash/image_ios": [
+                    copied_splash_images["ios"],
+                    copied_splash_images["default"],
+                    copied_icons["default"],
+                ],
+                "flutter_native_splash/image_dark_ios": [
+                    copied_splash_images["ios_dark"],
+                    copied_splash_images["default_dark"],
+                    copied_splash_images["ios"],
+                    copied_splash_images["default"],
+                    copied_icons["default"],
+                ],
+                "flutter_native_splash/image_android": [
+                    copied_splash_images["android"],
+                    copied_splash_images["default"],
+                    copied_icons["default"],
+                ],
+                "flutter_native_splash/android_12/image": [
+                    copied_splash_images["android"],
+                    copied_splash_images["default"],
+                    copied_icons["default"],
+                ],
+                "flutter_native_splash/image_dark_android": [
+                    copied_splash_images["android_dark"],
+                    copied_splash_images["default_dark"],
+                    copied_splash_images["android"],
+                    copied_splash_images["default"],
+                    copied_icons["default"],
+                ],
+                "flutter_native_splash/android_12/image_dark": [
+                    copied_splash_images["android_dark"],
+                    copied_splash_images["default_dark"],
+                    copied_splash_images["android"],
+                    copied_splash_images["default"],
+                    copied_icons["default"],
+                ],
+                "flutter_native_splash/image_web": [
+                    copied_splash_images["web"],
+                    copied_splash_images["default"],
+                    copied_icons["default"],
+                ],
+                "flutter_native_splash/image_dark_web": [
+                    copied_splash_images["web_dark"],
+                    copied_splash_images["default_dark"],
+                    copied_splash_images["web"],
+                    copied_splash_images["default"],
+                    copied_icons["default"],
+                ],
+            }
+            for path, images in fallback_paths_splash.items():
+                fallback_image(path, images)
+
+            # Set splash colors (light and dark)
+            splash_color = self.get_pyproject(
+                "tool.flet.splash.color", option=self.options.splash_color
             )
             if splash_color:
                 pubspec["flutter_native_splash"]["color"] = splash_color
                 pubspec["flutter_native_splash"]["android_12"]["color"] = splash_color
+
             splash_dark_color = self.get_pyproject(
                 "tool.flet.splash.dark_color", option=self.options.splash_dark_color
             )
@@ -1310,34 +1306,27 @@ class Command(BaseCommand):
                     "color_dark"
                 ] = splash_dark_color
 
+        # Set adaptive icon background
         adaptive_icon_background = self.get_pyproject(
             "tool.flet.android.adaptive_icon_background",
             option=self.options.android_adaptive_icon_background,
         )
-
         if adaptive_icon_background:
             pubspec["flutter_launcher_icons"][
                 "adaptive_icon_background"
             ] = adaptive_icon_background
 
-        # enable/disable splashes
-        pubspec["flutter_native_splash"]["web"] = (
-            not self.options.no_web_splash
-            if self.options.no_web_splash is not None
-            else self.get_pyproject("tool.flet.splash.web", default=True)
-        )
-        pubspec["flutter_native_splash"]["ios"] = (
-            not self.options.no_ios_splash
-            if self.options.no_ios_splash is not None
-            else self.get_pyproject("tool.flet.splash.ios", default=True)
-        )
-        pubspec["flutter_native_splash"]["android"] = (
-            not self.options.no_android_splash
-            if self.options.no_android_splash is not None
-            else self.get_pyproject("tool.flet.splash.android", default=True)
-        )
+        # Enable/disable splash screens
+        platforms = ["web", "ios", "android"]
+        for ptf in platforms:
+            no_splash = getattr(self.options, f"no_{ptf}_splash", None)
+            pubspec["flutter_native_splash"][ptf] = (
+                not no_splash
+                if no_splash is not None
+                else self.get_pyproject(f"tool.flet.splash.{ptf}", default=True)
+            )
 
-        # save pubspec.yaml
+        # Save pubspec.yaml
         with open(self.pubspec_path, "w", encoding="utf8") as f:
             yaml.dump(pubspec, f)
 
