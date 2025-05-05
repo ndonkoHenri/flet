@@ -121,7 +121,7 @@ class _TabsControlState extends State<TabsControl>
         TabBarTheme.of(context).indicator as UnderlineTabIndicator?;
     var indicatorTabSize = widget.control.getBool("indicator_tab_size");
     var isScrollable = widget.control.getBool("scrollable", true)!;
-    var secondary = widget.control.getBool("is_secondary", false)!;
+    var primary = widget.control.getBool("primary", true)!;
     var dividerHeight = widget.control.getDouble("divider_height");
     var enableFeedback = widget.control.getBool("enable_feedback");
     var indicatorWeight = widget.control.getDouble("indicator_thickness", 2.0)!;
@@ -182,7 +182,7 @@ class _TabsControlState extends State<TabsControl>
 
     TabBar? tabBar;
 
-    if (secondary) {
+    if (primary) {
       tabBar = TabBar.secondary(
           tabAlignment: tabAlignment,
           controller: _tabController,

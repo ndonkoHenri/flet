@@ -39,7 +39,7 @@ class AppBarControl extends StatelessWidget implements PreferredSizeWidget {
       scrolledUnderElevation: control.getDouble("elevation_on_scroll"),
       forceMaterialTransparency:
           control.getBool("force_material_transparency", false)!,
-      primary: !control.getBool("isSecondary", false)!,
+      primary: control.getBool("primary", true)!,
       titleSpacing: control.getDouble("title_spacing"),
       excludeHeaderSemantics:
           control.getBool("exclude_header_semantics", false)!,

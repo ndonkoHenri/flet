@@ -13,6 +13,12 @@ from flet.controls.animation import (
     OptionalAnimationValue,
 )
 from flet.controls.base_control import BaseControl, control
+from flet.controls.material.sliver import Sliver
+from flet.controls.material.sliver_grid_view import SliverGridView
+from flet.controls.material.sliver_list_view import SliverListView
+from flet.controls.material.sliver_safe_area import SliverSafeArea
+from flet.controls.material.sliver_scroll_view import SliverScrollView
+from flet.controls.material.sliver_app_bar import SliverAppBar, SliverAppBarType
 from flet.controls.blur import (
     Blur,
     BlurTileMode,

@@ -40,7 +40,7 @@ class Tab(AdaptiveControl):
         super().before_update()
         assert (self.label is not None) or (
             self.icon is not None
-        ), "Tab must have at least label or icon property set"
+        ), "at least label or icon property must be set"
 
 
 @control("Tabs")
@@ -62,7 +62,7 @@ class Tabs(ConstrainedControl, AdaptiveControl):
     indicator_border_side: Optional[BorderSide] = None
     indicator_padding: PaddingValue = 0
     indicator_tab_size: Optional[bool] = None
-    is_secondary: Optional[bool] = None
+    primary: bool = True
     label_color: bool = False
     label_padding: OptionalPaddingValue = None
     label_text_style: OptionalTextStyle = None

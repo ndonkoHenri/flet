@@ -53,8 +53,6 @@ class NotchShape(Enum):
     CIRCULAR = "circular"
 
 
-
-
 class ResponsiveRowBreakpoint(Enum):
     """
     Breakpoints for responsive design.
@@ -66,6 +64,7 @@ class ResponsiveRowBreakpoint(Enum):
     LG = "lg"
     XL = "xl"
     XXL = "xxl"
+
 Number = Union[int, float]
 ResponsiveNumber = Union[Dict[Union[str, ResponsiveRowBreakpoint], Number], Number]
 OptionalNumber = Optional[Number]
