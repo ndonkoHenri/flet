@@ -32,68 +32,70 @@ Deploy Flet app as a web app and view it in a browser. Package it as a standalon
 
 ## Flet app example
 
-At the moment you can write Flet apps in Python and other languages will be added soon.
-
-Here is a sample "Counter" app:
+Below is a simple Counter application:
 
 ```python title="counter.py"
-import flet
-from flet import IconButton, Page, Row, TextField, icons
+import flet as ft
 
-def main(page: Page):
+def main(page: ft.Page):
     page.title = "Flet counter example"
-    page.vertical_alignment = "center"
+    page.vertical_alignment = ft.MainAxisAlignment.CENTER
 
-    txt_number = TextField(value="0", text_align="right", width=100)
+    counter_field = ft.TextField(value="0", text_align=ft.TextAlign.RIGHT, width=100)
 
     def minus_click(e):
-        txt_number.value = str(int(txt_number.value) - 1)
+        counter_field.value = str(int(counter_field.value) - 1)
         page.update()
 
     def plus_click(e):
-        txt_number.value = str(int(txt_number.value) + 1)
+        counter_field.value = str(int(counter_field.value) + 1)
         page.update()
 
     page.add(
-        Row(
-            [
-                IconButton(icons.REMOVE, on_click=minus_click),
-                txt_number,
-                IconButton(icons.ADD, on_click=plus_click),
+        ft.Row(
+            alignment=ft.MainAxisAlignment.CENTER,
+            controls=[
+                ft.IconButton(ft.Icons.REMOVE, on_click=minus_click),
+                counter_field,
+                ft.IconButton(ft.Icons.ADD, on_click=plus_click),
             ],
-            alignment="center",
         )
     )
 
-flet.app(target=main)
+ft.app(main)
 ```
 
-To run the app install `flet` module:
+To run the app, install `flet` package:
 
 ```bash
-pip install flet
+pip install flet['all']
 ```
 
 and run the program:
 
 ```bash
 python counter.py
+
+# OR (with hot-reload)
+
+flet run counter.py
 ```
 
 The app will be started in a native OS window - what a nice alternative to Electron!
 
 <img src="https://flet.dev/img/docs/getting-started/flet-counter-macos.png" width="45%" />
 
-
-Now, if you want to run the app as a web app, just replace the last line with:
+Now, if you want to run the app as a web app, simply replace the last line with:
 
 ```python
-flet.app(target=main, view=flet.AppView.WEB_BROWSER)
+ft.app(main, view=flet.AppView.WEB_BROWSER)
 ```
 
 run again and now you instantly get a web app:
 
 <img src="https://flet.dev/img/docs/getting-started/flet-counter-safari.png" width="60%" />
+
+Want to package this app for any platform? Follow this [guide](https://flet.dev/docs/publish).
 
 ## Getting started
 
@@ -113,9 +115,9 @@ More demo applications can be found in the [gallery](https://flet.dev/gallery/).
 
 * [Discussions](https://github.com/flet-dev/flet/discussions)
 * [Discord](https://discord.gg/dzWXP8SHG8)
-* [Twitter](https://twitter.com/fletdev)
+* [X (Twitter)](https://twitter.com/fletdev)
+* [Bluesky](https://bsky.app/profile/fletdev.bsky.social)
 * [Email](mailto:hello@flet.dev)
 
 ## Contribute to this wonderful project
-
-* Read the <a href="https://github.com/flet-dev/flet/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a> file
+Read the <a href="https://github.com/flet-dev/flet/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a> file.
