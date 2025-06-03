@@ -1,8 +1,18 @@
-# Flet
+<p align="center">
+  <a href="https://flet.dev"><img src="media/logo/flet-logo.svg" alt="Flet logo"></a>
+</p>
 
-<img src="media/logo/flet-logo.svg" width="50%"/>
-
-[![Build status](https://ci.appveyor.com/api/projects/status/xwablctxslvey576/branch/main?svg=true)](https://ci.appveyor.com/project/flet-dev/flet/branch/main)
+<p align="center">
+<a href="https://ci.appveyor.com/project/flet-dev/flet/branch/main" target="_blank">
+    <img src="https://ci.appveyor.com/api/projects/status/xwablctxslvey576/branch/main?svg=true" alt="Build status">
+</a>
+<a href="https://pypi.org/project/flet" target="_blank">
+    <img src="https://img.shields.io/pypi/v/flet?color=%2334D058&label=pypi%20package" alt="Package version">
+</a>
+<a href="https://pypi.org/project/flet" target="_blank">
+    <img src="https://img.shields.io/pypi/pyversions/flet.svg?color=%2334D058" alt="Supported Python versions">
+</a>
+</p>
 
 Flet is a framework that enables you to easily build real-time web, mobile, and desktop apps in your favorite language and securely share them with your team. No frontend experience is required.
 
