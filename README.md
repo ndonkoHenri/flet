@@ -3,6 +3,10 @@
 </p>
 
 <p align="center">
+    <em>Build multi-platform apps in Python powered by Flutter</em>
+</p>
+
+<p align="center">
 <a href="https://ci.appveyor.com/project/flet-dev/flet/branch/main" target="_blank">
     <img src="https://ci.appveyor.com/api/projects/status/xwablctxslvey576/branch/main?svg=true" alt="Build status">
 </a>
