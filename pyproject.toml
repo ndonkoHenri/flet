@@ -1,5 +1,5 @@
 [project]
-name = "flet-map"
+name = "flet"
 version = "0.2.0"
 description = "Display interactive Maps in your Flet apps."
 readme = "README.md"
