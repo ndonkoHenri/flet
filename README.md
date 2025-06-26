@@ -76,7 +76,7 @@ def main(page: ft.Page):
         )
     )
 
-ft.app(main)
+ft.run(main)
 ```
 
 To run the app, install `flet` package:
@@ -102,7 +102,7 @@ The app will be started in a native OS window - what a nice alternative to Elect
 Now, if you want to run the app as a web app, simply replace the last line with:
 
 ```python
-ft.app(main, view=flet.AppView.WEB_BROWSER)
+ft.run(main, view=flet.AppView.WEB_BROWSER)
 ```
 
 run again and now you instantly get a web app:
