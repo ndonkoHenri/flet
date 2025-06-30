@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./flet/sdk/python/packages/flet
+        working-directory: sdk/python/packages/flet
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
