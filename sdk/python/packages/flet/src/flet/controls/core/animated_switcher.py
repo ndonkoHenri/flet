@@ -34,6 +34,8 @@ class AnimatedSwitcher(ConstrainedControl):
     """
     The duration, in milliseconds, of the transition from the old `content` value
     to the new one.
+
+     mkdocstrings-python-xref example: [`content`][(c).]
     """
 
     reverse_duration: DurationValue = field(default_factory=lambda: Duration(seconds=1))
