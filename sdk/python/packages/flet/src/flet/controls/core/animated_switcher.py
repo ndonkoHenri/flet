@@ -20,6 +20,8 @@ class AnimatedSwitcherTransition(Enum):
 class AnimatedSwitcher(ConstrainedControl):
     """
     Used to switch between controls with an animation.
+
+    mkdocstrings-python-xref example: [`content`][(c).]
     """
 
     content: Control
