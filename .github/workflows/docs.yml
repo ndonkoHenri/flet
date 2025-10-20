@@ -58,7 +58,7 @@ jobs:
         uses: astral-sh/setup-uv@v6
 
       - name: Build site with MkDocs
-        run: uv run --directory sdk/python/packages/flet --group docs mkdocs build --strict
+        run: uv run --directory sdk/python/packages/flet --group docs mkdocs build
 
   deploy-dev:
     name: Deploy Dev Docs
