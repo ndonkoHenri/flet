@@ -1,0 +1,224 @@
+name: docs
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - v*
+#    paths:
+#      - "sdk/python/packages/flet/**"
+#      - "sdk/python/Taskfile.yml"
+#      - ".github/workflows/docs.yml"
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version identifier to deploy (e.g. 1.2.3)"
+        required: true
+        type: string
+      aliases:
+        description: "Space-separated aliases to update (e.g. \"latest stable\")"
+        required: false
+        default: latest
+        type: string
+      title:
+        description: "Display title for the version selector (optional)"
+        required: false
+        type: string
+      default_alias:
+        description: "Alias to set as canonical/default (optional)"
+        required: false
+        type: string
+
+concurrency:
+  group: docs
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+
+jobs:
+  build:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Show workflow context
+        run: |
+          echo "Event: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "SHA: ${{ github.sha }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "Head ref: ${{ github.head_ref }}"
+          echo "Base ref: ${{ github.base_ref }}"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Build site with MkDocs
+        run: uv run --directory sdk/python/packages/flet --group docs mkdocs build --strict
+
+  deploy-dev:
+    name: Deploy Dev Docs
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Configure Git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Show dev deployment context
+        run: |
+          echo "Deploying dev docs from ref: $GITHUB_REF"
+          echo "Commit: $(git rev-parse HEAD)"
+          echo "Short commit: $(git rev-parse --short HEAD)"
+          echo "Current branch: $(git rev-parse --abbrev-ref HEAD)"
+          echo "Git status:"
+          git status -sb
+
+      - name: Deploy dev alias with mike
+        shell: bash
+        working-directory: sdk/python/packages/flet
+        run: |
+          set -euo pipefail
+
+          git fetch origin gh-pages || true
+
+          uv run --group docs
+
+          SHORT_SHA="$(git rev-parse --short HEAD)"
+          TITLE="Development build (${SHORT_SHA})"
+          echo "Computed title: ${TITLE}"
+
+          uv run mike deploy dev dev --title "${TITLE}" --update-aliases --push --force
+          echo "Dev docs deployed. Listing versions:"
+          uv run mike list
+
+  deploy:
+    name: Deploy Versioned Docs
+    needs: build
+    if: github.event_name == 'workflow_dispatch' || github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Configure Git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Show deployment context
+        run: |
+          echo "Preparing deployment for ref: $GITHUB_REF"
+          echo "Event: ${{ github.event_name }}"
+          echo "Ref type: $GITHUB_REF_TYPE"
+          echo "Tag (if any): ${GITHUB_REF#refs/tags/}"
+          echo "Commit: $(git rev-parse HEAD)"
+          echo "Git status:"
+          git status -sb
+
+      - name: Determine deployment parameters
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            if [ -z "${VERSION}" ]; then
+              echo "Manual dispatch requires a version input." >&2
+              exit 1
+            fi
+            ALIASES="${{ github.event.inputs.aliases }}"
+            TITLE="${{ github.event.inputs.title }}"
+            DEFAULT_ALIAS="${{ github.event.inputs.default_alias }}"
+          else
+            REF_NAME="${GITHUB_REF#refs/tags/}"
+            VERSION="${REF_NAME#v}"
+            if [ -z "${VERSION}" ]; then
+              VERSION="${REF_NAME}"
+            fi
+            ALIASES="latest stable"
+            TITLE="Flet ${VERSION}"
+            DEFAULT_ALIAS="latest"
+          fi
+
+          if [ -z "${TITLE}" ]; then
+            TITLE="Flet ${VERSION}"
+          fi
+
+          echo "Resolved parameters:"
+          echo "  VERSION=${VERSION}"
+          echo "  ALIASES=${ALIASES}"
+          echo "  TITLE=${TITLE}"
+          echo "  DEFAULT_ALIAS=${DEFAULT_ALIAS}"
+
+          echo "version=${VERSION}" >>"$GITHUB_OUTPUT"
+          echo "aliases=${ALIASES}" >>"$GITHUB_OUTPUT"
+          echo "title=${TITLE}" >>"$GITHUB_OUTPUT"
+          echo "default_alias=${DEFAULT_ALIAS}" >>"$GITHUB_OUTPUT"
+
+      - name: Deploy with mike
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          ALIASES: ${{ steps.meta.outputs.aliases }}
+          TITLE: ${{ steps.meta.outputs.title }}
+          DEFAULT_ALIAS: ${{ steps.meta.outputs.default_alias }}
+        shell: bash
+        working-directory: sdk/python/packages/flet
+        run: |
+          set -euo pipefail
+
+          git fetch origin gh-pages || true
+
+          uv run --group docs
+
+          mapfile -t alias_array < <(printf '%s\n' "${ALIASES}" | tr ' ' '\n' | sed '/^$/d')
+          if [ ${#alias_array[@]} -eq 0 ]; then
+            echo "Deploying version ${VERSION} with no aliases (raw input: '${ALIASES}')."
+          else
+            echo "Deploying version ${VERSION} with aliases: ${alias_array[*]}"
+          fi
+
+          cmd=(uv run mike deploy "${VERSION}")
+          for alias in "${alias_array[@]}"; do
+            cmd+=("$alias")
+          done
+          if [ -n "${TITLE}" ]; then
+            cmd+=(--title "${TITLE}")
+          fi
+          cmd+=(--update-aliases --push)
+          "${cmd[@]}"
+          echo "Finished mike deploy command: ${cmd[*]}"
+
+          if [ -n "${DEFAULT_ALIAS}" ]; then
+            uv run mike set-default "${DEFAULT_ALIAS}" --push
+            echo "Set default alias to ${DEFAULT_ALIAS}"
+          else
+            echo "No default alias change requested."
+          fi
+
+          echo "Available versions after deployment:"
+          uv run mike list
