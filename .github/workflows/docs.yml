@@ -63,7 +63,8 @@ jobs:
   deploy-dev:
     name: Deploy Dev Docs
     needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' 
+    # && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
