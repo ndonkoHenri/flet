@@ -67,6 +67,7 @@ theme:
 extra:
   version:
     provider: mike
+    default: latest
   # hide the "Made with Material for MkDocs" message
   generator: false
   social:
@@ -109,6 +110,7 @@ plugins:
   - open-in-new-tab
   - mike:
       alias_type: symlink
+      canonical_version: latest
   - glightbox:
       background: none
   - markdown-exec
