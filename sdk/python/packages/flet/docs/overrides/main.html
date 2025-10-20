@@ -10,3 +10,42 @@
 </div>
 -->
 {% endblock %}
+
+{% block content %}
+  {% set version_cfg = config.extra.version %}
+  {% if version_cfg and version_cfg.provider == "mike" and page and page.meta and page.meta.version %}
+    {% set default_alias = version_cfg.default | default("latest") %}
+    {% set version_info = page.meta.version %}
+    {% set aliases = version_info.aliases | default([]) %}
+    {% set ns = namespace(is_default=false) %}
+    {% for alias in aliases %}
+      {% if alias == default_alias %}
+        {% set ns.is_default = true %}
+      {% endif %}
+    {% endfor %}
+    {% if not ns.is_default %}
+      {% set label_ns = namespace(value=None) %}
+      {% if version_info.title %}
+        {% set label_ns.value = version_info.title %}
+      {% elif version_info.name %}
+        {% set label_ns.value = version_info.name %}
+      {% elif version_info.version %}
+        {% set label_ns.value = version_info.version %}
+      {% elif version_info.aliases %}
+        {% set label_ns.value = version_info.aliases[0] %}
+      {% elif version_info.slug %}
+        {% set label_ns.value = version_info.slug %}
+      {% endif %}
+      <div class="md-banner md-banner--warning">
+        <div class="md-banner__inner md-typeset">
+          <p>
+            You are viewing the documentation for
+            <strong>{{ label_ns.value or "an older release" }}</strong>.
+            Use the version selector in the header to switch to the {{ default_alias }} documentation.
+          </p>
+        </div>
+      </div>
+    {% endif %}
+  {% endif %}
+  {{ super() }}
+{% endblock %}
