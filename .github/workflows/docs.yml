@@ -103,7 +103,7 @@ jobs:
           TITLE="Development build (${SHORT_SHA})"
           echo "Computed title: ${TITLE}"
 
-          uv run mike deploy dev dev --title "${TITLE}" --update-aliases --push --force
+          uv run mike deploy dev dev --title "${TITLE}" --update-aliases --push
           echo "Dev docs deployed. Listing versions:"
           uv run mike list
 
