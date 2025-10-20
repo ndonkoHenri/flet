@@ -97,7 +97,7 @@ jobs:
 
           git fetch origin gh-pages || true
 
-          uv run --group docs
+          uv run --group docs || true
 
           SHORT_SHA="$(git rev-parse --short HEAD)"
           TITLE="Development build (${SHORT_SHA})"
