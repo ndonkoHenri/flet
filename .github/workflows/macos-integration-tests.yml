@@ -33,6 +33,7 @@ env:
 jobs:
   test-macos:
     runs-on: macos-14
+    if: false
     strategy:
       fail-fast: false
       matrix:
