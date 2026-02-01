@@ -5,9 +5,51 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      build_and_release: ${{ steps.changed.outputs.build_and_release }}
+      macos_integration_tests: ${{ steps.changed.outputs.macos_integration_tests }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed files
+        id: changed
+        uses: tj-actions/changed-files@v47
+        with:
+          files_yaml: |
+            build_and_release:
+              - .github/workflows/ci.yml
+              - .github/workflows/build-and-release.yml
+              - .github/scripts/**
+              - client/**
+              - sdk/python/packages/**
+              - packages/flet/**
+              - .fvmrc
+            macos_integration_tests:
+              - .github/workflows/ci.yml
+              - .github/workflows/macos-integration-tests.yml
+              - sdk/python/packages/flet/src/**
+              - sdk/python/packages/flet/integration_tests/**
+              - packages/flet/**
+              - client/**
+              - .fvmrc
+
   build_and_release:
     name: Build & Release
+    needs: changes
+    if: needs.changes.outputs.build_and_release == 'true'
     uses: ./.github/workflows/build-and-release.yml
     permissions:
       id-token: write
@@ -15,6 +57,8 @@ jobs:
 
   macos_integration_tests:
     name: macOS Integration Tests
+    needs: changes
+    if: needs.changes.outputs.macos_integration_tests == 'true'
     uses: ./.github/workflows/macos-integration-tests.yml
     permissions:
       contents: read

@@ -2,27 +2,27 @@ name: Build & Release
 
 on:
   workflow_call:
-  push:
-    branches:
-      - '**'
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
-    paths:
-      - '.github/workflows/build-and-release.yml'
-      - '.github/scripts/**'
-      - 'client/**'
-      - 'sdk/python/packages/**'
-      - 'packages/flet/**'
-      - '.fvmrc'
-  pull_request:
-    paths:
-      - '.github/workflows/build-and-release.yml'
-      - '.github/scripts/**'
-      - 'client/**'
-      - 'sdk/python/packages/**'
-      - 'packages/flet/**'
-      - '.fvmrc'
   workflow_dispatch:
+#  push:
+#    branches:
+#      - '**'
+#    tags:
+#      - 'v[0-9]+.[0-9]+.[0-9]+'
+#    paths:
+#      - '.github/workflows/build-and-release.yml'
+#      - '.github/scripts/**'
+#      - 'client/**'
+#      - 'sdk/python/packages/**'
+#      - 'packages/flet/**'
+#      - '.fvmrc'
+#  pull_request:
+#    paths:
+#      - '.github/workflows/build-and-release.yml'
+#      - '.github/scripts/**'
+#      - 'client/**'
+#      - 'sdk/python/packages/**'
+#      - 'packages/flet/**'
+#      - '.fvmrc'
 
 permissions:
   id-token: write
@@ -82,6 +82,7 @@ jobs:
   # ===========================
   build_flet_package:
     name: Build Flet Flutter package
+    if: false
     runs-on: ubuntu-latest
     permissions:
       id-token: write # Required for authentication using OIDC
