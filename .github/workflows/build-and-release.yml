@@ -3,18 +3,6 @@ name: Build & Release
 on:
   workflow_call:
   workflow_dispatch:
-#  push:
-#    branches:
-#      - '**'
-#    tags:
-#      - 'v[0-9]+.[0-9]+.[0-9]+'
-#    paths:
-#      - '.github/workflows/build-and-release.yml'
-#      - '.github/scripts/**'
-#      - 'client/**'
-#      - 'sdk/python/packages/**'
-#      - 'packages/flet/**'
-#      - '.fvmrc'
 
 permissions:
   id-token: write
