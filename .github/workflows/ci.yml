@@ -45,7 +45,6 @@ jobs:
               - packages/flet/**
               - client/**
               - .fvmrc
-            - name: List all changed files
 
       - name: List all changed files
         env:
@@ -54,7 +53,6 @@ jobs:
           for file in ${ALL_CHANGED_FILES}; do
             echo "$file was changed"
           done
-
 
   build_and_release:
     name: Build & Release
