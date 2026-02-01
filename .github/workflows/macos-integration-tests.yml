@@ -30,7 +30,16 @@ jobs:
       fail-fast: false
       matrix:
         suite:
-        - apps
+#        - apps
+          - examples/apps
+#        - examples/core
+#        - examples/cupertino
+#        - examples/material
+#        - controls/core
+#        - controls/cupertino
+#        - controls/material
+#        - controls/theme
+#        - controls/types
 
     name: ${{ matrix.suite }} Integration Tests
     steps:
@@ -39,3 +48,34 @@ jobs:
 
       - name: Setup uv
         uses: astral-sh/setup-uv@v6
+
+      - name: Setup Flutter
+        uses: kuhnroyal/flutter-fvm-config-action/setup@v3
+        with:
+          path: '.fvmrc'
+          cache: true
+
+      - name: Show tool versions
+        run: |
+          uv --version && uv run python --version && pod --version && flutter --version
+
+      - name: Run integration tests (${{ matrix.suite }})
+        working-directory: sdk/python
+        run: |
+          uv run pytest -s -o log_cli=true -o log_cli_level=INFO packages/flet/integration_tests/${{ matrix.suite }}
+
+      - name: Prepare failure screenshots
+        if: failure()
+        run: |
+          SAFE_SUITE="${MATRIX_SUITE//\//-}"
+          echo "SAFE_SUITE=$SAFE_SUITE" >> $GITHUB_ENV
+        env:
+          MATRIX_SUITE: ${{ matrix.suite }}
+
+      - name: Upload artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-failures-macos-${{ env.SAFE_SUITE }}
+          path: sdk/python/packages/flet/integration_tests/${{ matrix.suite }}/**/*_actual.png
+          if-no-files-found: ignore
