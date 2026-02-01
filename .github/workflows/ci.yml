@@ -16,8 +16,8 @@ jobs:
     permissions:
       contents: read
     outputs:
-      build_and_release: ${{ steps.changed.outputs.build_and_release }}
-      macos_integration_tests: ${{ steps.changed.outputs.macos_integration_tests }}
+      build_and_release: ${{ steps.changed-files.outputs.build_and_release_any_changed }}
+      macos_integration_tests: ${{ steps.changed-files.outputs.macos_integration_tests_any_changed }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -28,6 +28,7 @@ jobs:
         id: changed-files
         uses: tj-actions/changed-files@v47
         with:
+          separator: "\n"
           files_yaml: |
             build_and_release:
               - .github/workflows/ci.yml
@@ -47,12 +48,12 @@ jobs:
               - .fvmrc
 
       - name: List all changed files
+        if: steps.changed-files.outputs.build_and_release_any_changed == 'true' || steps.changed-files.outputs.macos_integration_tests_any_changed == 'true'
         env:
-          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+          BUILD_CHANGED_FILES: ${{ steps.changed-files.outputs.build_and_release_all_changed_files }}
+          MACOS_CHANGED_FILES: ${{ steps.changed-files.outputs.macos_integration_tests_all_changed_files }}
         run: |
-          for file in ${ALL_CHANGED_FILES}; do
-            echo "$file was changed"
-          done
+          printf '%s\n' "$BUILD_CHANGED_FILES" "$MACOS_CHANGED_FILES" | sed '/^$/d' | sort -u
 
   build_and_release:
     name: Build & Release
