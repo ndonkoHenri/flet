@@ -1,6 +1,7 @@
 name: macOS Integration Tests
 
 on:
+  workflow_call:
   push:
     paths:
       - '.github/workflows/macos-integration-tests.yml'
