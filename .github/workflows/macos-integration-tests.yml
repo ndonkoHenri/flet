@@ -7,7 +7,7 @@ on:
         description: "Test directories under integration_tests, separated by spaces"
         default: "controls/core controls/cupertino controls/material controls/services controls/theme"
       configs:
-        description: 'JSON list, one job each: k (workers), hide ("1" = hidden windows), cascade ("1" = per-worker window position), serial (dirs run after the pool with one worker), label'
+        description: 'JSON list, one job each: k (workers), hide ("1" = hidden windows), cascade ("1" = per-worker window position), serial (dirs or files run after the pool with one worker), label'
         default: '[{"k":1}]'
       verbose:
         description: "Write the output of every app launch to the worker logs"
@@ -87,9 +87,13 @@ jobs:
         run: |
           set -o pipefail
           T=packages/flet/integration_tests
-          pool=(); serial=()
+          pool=(); serial=(); ignore=()
           for d in $PAR_DIRS; do
-            if [[ " $PAR_SERIAL " == *" $d "* ]]; then serial+=("$T/$d"); else pool+=("$T/$d"); fi
+            if [[ " $PAR_SERIAL " != *" $d "* ]]; then pool+=("$T/$d"); fi
+          done
+          for s in $PAR_SERIAL; do
+            serial+=("$T/$s")
+            if [[ " $PAR_DIRS " != *" $s "* ]]; then ignore+=("--ignore=$T/$s"); fi
           done
           if [ "$PAR_HIDE" = "1" ]; then export FLET_HIDE_WINDOW_ON_START=1; fi
           export PYTHONPATH="$GITHUB_WORKSPACE/.github/scripts/par"
@@ -98,7 +102,7 @@ jobs:
           common=(--import-mode=importlib -p par_worker_log -o log_level=INFO -v -rfE)
           rc=0
           t0=$(date +%s)
-          uv run --with pytest-xdist pytest -n "$PAR_K" --dist loadfile "${common[@]}" "${pool[@]}" || rc=$?
+          uv run --with pytest-xdist pytest -n "$PAR_K" --dist loadfile "${common[@]}" "${ignore[@]}" "${pool[@]}" || rc=$?
           t1=$(date +%s)
           echo "PAR_RESULT phase=pool k=$PAR_K seconds=$((t1 - t0)) rc=$rc"
           if [ ${#serial[@]} -gt 0 ]; then
