@@ -2,13 +2,31 @@ name: macOS Integration Tests
 
 on:
   pull_request:
+    # What the macOS test app is built from and what the tests import.
+    # A `!` pattern takes back files matched by the patterns above it.
     paths:
       - '.github/workflows/macos-integration-tests.yml'
+      - '.fvmrc'
+      - 'client/**'
+      - '!client/android/**'
+      - '!client/ios/**'
+      - '!client/linux/**'
+      - '!client/web/**'
+      - '!client/windows/**'
+      - 'packages/flet/**'
+      - 'packages/flet_integration_test/**'
+      - 'sdk/python/pyproject.toml'
+      - 'sdk/python/examples/**'
+      - 'sdk/python/packages/flet/pyproject.toml'
       - 'sdk/python/packages/flet/src/**'
       - 'sdk/python/packages/flet/integration_tests/**'
-      - 'packages/flet/**'
-      - 'client/**'
-      - '.fvmrc'
+      - 'sdk/python/packages/flet-*/**'
+      - '!sdk/python/packages/flet-cli/**'
+      - '!sdk/python/packages/flet-desktop/**'
+      - '!sdk/python/packages/flet-mcp/**'
+      - '!sdk/python/packages/flet-platform-assets/**'
+      - '!sdk/python/packages/flet-web/**'
+      - '!**.md'
   workflow_dispatch:
     inputs:
       launch:
