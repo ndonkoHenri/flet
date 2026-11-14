@@ -29,32 +29,84 @@ on:
       - '!**.md'
   workflow_dispatch:
     inputs:
-      launch:
-        description: "How each test starts the app"
+      layout:
+        description: "Where the test app is built"
         type: choice
         options:
-          - prebuilt
-          - flutter-test
-        default: prebuilt
-      suites:
-        description: "JSON list of suites to run"
-        default: '["apps","examples/apps","examples/controls/core","examples/controls/cupertino","examples/controls/material","examples/extensions","controls/core","controls/cupertino","controls/material","controls/services","controls/theme","extensions"]'
-      verbose:
-        description: "Stream the Flutter output of every launch"
-        type: boolean
-        default: false
+          - each-job-builds
+          - shared-artifact
+        default: each-job-builds
+      collect:
+        description: "per-directory: one pytest run per directory; importlib: one pytest run per job"
+        type: choice
+        options:
+          - per-directory
+          - importlib
+        default: per-directory
+      groups:
+        description: "JSON list of jobs: id, name, dirs, extra (directories outside the verdict)"
+        default: '[{"id":"controls","name":"controls","dirs":"controls/core controls/cupertino controls/material controls/services controls/theme"},{"id":"examples-controls","name":"examples/controls","dirs":"examples/controls/core examples/controls/cupertino examples/controls/material"},{"id":"apps-extensions","name":"apps and extensions","dirs":"apps examples/apps extensions examples/extensions","extra":"tutorials examples/cookbook"}]'
+      label:
+        description: "Free text for the run name"
+        default: ""
 
-run-name: "Integration tests: ${{ inputs.launch }}${{ inputs.verbose && ' (verbose)' || '' }}"
+run-name: "Layout: ${{ inputs.layout }}, ${{ inputs.collect }} ${{ inputs.label }}"
 
 env:
   FLET_TEST_SCREENSHOTS_PIXEL_RATIO: "2.0"
   FLET_TEST_SCREENSHOTS_SIMILARITY_THRESHOLD: "99.0"
   FLET_TEST_DISABLE_FVM: "1"
   UV_PYTHON: "3.13"
-  FLET_TEST_VERBOSE: ${{ inputs.verbose && '1' || '0' }}
+  APP_BUNDLE_DIR: client/build/macos/Build/Products/Debug
+  APP_ARCHIVE: flet-test-app.tar.zst
 
 jobs:
+  build-app:
+    name: Build test app
+    if: inputs.layout == 'shared-artifact'
+    runs-on: macos-26
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Setup Flutter
+        uses: kuhnroyal/flutter-fvm-config-action/setup@c378498f1d1962d33039c3989411093ef8a17b2c # v3.3
+        with:
+          path: '.fvmrc'
+          cache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+      - name: Build integration test app
+        working-directory: client
+        run: flutter build macos --debug -t integration_test/app_test.dart
+
+      # tar keeps the symlinks, file modes and the ad hoc signature of the bundle.
+      - name: Pack test app
+        run: |
+          zstd --version
+          du -sh "$APP_BUNDLE_DIR/Flet.app"
+          codesign --verify --deep --strict "$APP_BUNDLE_DIR/Flet.app"
+          codesign -dv "$APP_BUNDLE_DIR/Flet.app" 2>&1 | grep -E "Signature|flags|TeamIdentifier"
+          time (tar -cf - -C "$APP_BUNDLE_DIR" Flet.app | zstd -3 -T0 -q -o "$RUNNER_TEMP/$APP_ARCHIVE")
+          ls -l "$RUNNER_TEMP/$APP_ARCHIVE"
+
+      - name: Upload test app
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: flet-test-app
+          path: ${{ runner.temp }}/${{ env.APP_ARCHIVE }}
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
+
   test-macos:
+    name: ${{ matrix.name }} Integration Tests
+    needs: build-app
+    if: ${{ !cancelled() && needs.build-app.result != 'failure' }}
     runs-on: macos-26
     timeout-minutes: 330
     permissions:
@@ -62,9 +114,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: ${{ fromJSON(inputs.suites) }}
+        include: ${{ fromJSON(inputs.groups) }}
 
-    name: ${{ matrix.suite }} Integration Tests
     steps:
       - name: Checkout repository
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -77,6 +128,7 @@ jobs:
           enable-cache: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Setup Flutter
+        if: inputs.layout != 'shared-artifact'
         uses: kuhnroyal/flutter-fvm-config-action/setup@c378498f1d1962d33039c3989411093ef8a17b2c # v3.3
         with:
           path: '.fvmrc'
@@ -84,7 +136,8 @@ jobs:
 
       - name: Show tool versions
         run: |
-          uv --version && uv run python --version && pod --version && flutter --version
+          uv --version && uv run python --version
+          command -v flutter && flutter --version || echo "No flutter on PATH"
 
       - name: Show macOS display resolution
         run: |
@@ -93,31 +146,88 @@ jobs:
           sips -g pixelWidth -g pixelHeight /tmp/screen.png
 
       - name: Build integration test app
-        if: inputs.launch != 'flutter-test'
+        if: inputs.layout != 'shared-artifact'
         working-directory: client
         run: |
           flutter build macos --debug -t integration_test/app_test.dart
           echo "FLET_TEST_APP_BINARY=$PWD/build/macos/Build/Products/Debug/Flet.app/Contents/MacOS/Flet" >> "$GITHUB_ENV"
 
-      - name: Run integration tests (${{ matrix.suite }})
-        working-directory: sdk/python
-        run: |
-          uv run pytest -s -o log_cli=true -o log_cli_level=INFO packages/flet/integration_tests/${{ matrix.suite }}
+      - name: Download test app
+        if: inputs.layout == 'shared-artifact'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: flet-test-app
+          path: ${{ runner.temp }}
 
-      - name: Prepare failure screenshots
-        if: failure()
+      - name: Unpack test app
+        if: inputs.layout == 'shared-artifact'
         run: |
-          SAFE_SUITE="${MATRIX_SUITE//\//-}"
-          echo "SAFE_SUITE=$SAFE_SUITE" >> $GITHUB_ENV
+          ls -l "$RUNNER_TEMP/$APP_ARCHIVE"
+          xattr -l "$RUNNER_TEMP/$APP_ARCHIVE"
+          mkdir -p "$RUNNER_TEMP/flet-test-app"
+          time (zstd -dc "$RUNNER_TEMP/$APP_ARCHIVE" | tar -xf - -C "$RUNNER_TEMP/flet-test-app")
+          APP="$RUNNER_TEMP/flet-test-app/Flet.app"
+          du -sh "$APP"
+          echo "symlinks: $(find "$APP" -type l | wc -l)"
+          echo "quarantine attributes: $(xattr -lr "$APP" | grep -c com.apple.quarantine || true)"
+          time codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign -dv "$APP" 2>&1 | grep -E "Signature|flags|TeamIdentifier"
+          echo "FLET_TEST_APP_BINARY=$APP/Contents/MacOS/Flet" >> "$GITHUB_ENV"
+
+      # Test file names repeat across directories, so each directory gets its
+      # own pytest run. A failing directory does not stop the ones after it.
+      - name: Run integration tests
+        if: inputs.collect == 'per-directory'
+        working-directory: sdk/python
         env:
-          MATRIX_SUITE: ${{ matrix.suite }}
+          TEST_DIRS: ${{ matrix.dirs }}
+        run: |
+          failed=()
+          for dir in $TEST_DIRS; do
+            echo "::group::$dir"
+            uv run pytest -s -o log_cli=true -o log_cli_level=INFO "packages/flet/integration_tests/$dir" 2>&1 | tee "$RUNNER_TEMP/pytest.log" || failed+=("$dir")
+            echo "::endgroup::"
+            echo "$dir: $(grep -E '^=+ .* in [0-9.]+s' "$RUNNER_TEMP/pytest.log" | tail -n 1)"
+          done
+          if [ ${#failed[@]} -gt 0 ]; then
+            echo "::error::Failed directories: ${failed[*]}"
+            exit 1
+          fi
+
+      - name: Run integration tests (one pytest run)
+        if: inputs.collect == 'importlib'
+        working-directory: sdk/python
+        env:
+          TEST_DIRS: ${{ matrix.dirs }}
+        run: |
+          paths=()
+          for dir in $TEST_DIRS; do paths+=("packages/flet/integration_tests/$dir"); done
+          uv run pytest --import-mode=importlib -s -o log_cli=true -o log_cli_level=INFO "${paths[@]}"
+
+      - name: Run directories outside the verdict
+        id: extra
+        if: ${{ !cancelled() && matrix.extra }}
+        working-directory: sdk/python
+        env:
+          TEST_DIRS: ${{ matrix.extra }}
+        run: |
+          for dir in $TEST_DIRS; do
+            echo "::group::$dir"
+            uv run pytest -s -o log_cli=true -o log_cli_level=INFO "packages/flet/integration_tests/$dir" 2>&1 | tee "$RUNNER_TEMP/pytest.log" || failed=true
+            echo "::endgroup::"
+            echo "$dir: $(grep -E '^=+ .* in [0-9.]+s' "$RUNNER_TEMP/pytest.log" | tail -n 1)"
+          done
+          if [ -n "${failed:-}" ]; then
+            echo "::warning::Directories outside the verdict failed"
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Upload artifact
-        if: failure()
+        if: ${{ failure() || steps.extra.outputs.failed == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: integration-test-failures-macos-${{ env.SAFE_SUITE }}
+          name: integration-test-failures-macos-${{ matrix.id }}
           path: |
-            sdk/python/packages/flet/integration_tests/${{ matrix.suite }}/**/*_actual.png
-            sdk/python/packages/flet/integration_tests/${{ matrix.suite }}/**/*_actual.gif
+            sdk/python/packages/flet/integration_tests/**/*_actual.png
+            sdk/python/packages/flet/integration_tests/**/*_actual.gif
           if-no-files-found: ignore
