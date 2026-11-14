@@ -25,8 +25,19 @@ on:
         description: "Stream the Flutter output of every launch"
         type: boolean
         default: false
+      variants:
+        description: "Space-separated labels; the suite runs once per label on the same build (the harness on this branch has no variants)"
+        default: "shipped"
+      warmup:
+        description: "Run one test file before the variants so none of them pays the cold first launch"
+        type: boolean
+        default: false
+      seeded:
+        description: "Also run the seeded-failure tests (this job is expected to be red)"
+        type: boolean
+        default: false
 
-run-name: "Integration tests: ${{ inputs.launch }}${{ inputs.verbose && ' (verbose)' || '' }}"
+run-name: "waits-final [${{ inputs.variants }}] ${{ inputs.launch }}${{ inputs.verbose && ' (verbose)' || '' }}${{ inputs.seeded && ' +seeded' || '' }}"
 
 env:
   FLET_TEST_SCREENSHOTS_PIXEL_RATIO: "2.0"
@@ -81,10 +92,24 @@ jobs:
           flutter build macos --debug -t integration_test/app_test.dart
           echo "FLET_TEST_APP_BINARY=$PWD/build/macos/Build/Products/Debug/Flet.app/Contents/MacOS/Flet" >> "$GITHUB_ENV"
 
-      - name: Run integration tests (${{ matrix.suite }})
+      - name: Warm up
+        if: inputs.warmup
         working-directory: sdk/python
         run: |
-          uv run pytest -s -o log_cli=true -o log_cli_level=INFO packages/flet/integration_tests/${{ matrix.suite }}
+          uv run pytest -s -o log_cli=true -o log_cli_level=INFO packages/flet/integration_tests/controls/theme/test_button_theme.py
+
+      - name: Run integration tests (${{ matrix.suite }})
+        working-directory: sdk/python
+        env:
+          VARIANTS: ${{ inputs.variants }}
+        run: |
+          status=0
+          for variant in $VARIANTS; do
+            echo "=== variant $variant start ==="
+            uv run pytest -s -o log_cli=true -o log_cli_level=INFO packages/flet/integration_tests/${{ matrix.suite }} || status=1
+            echo "=== variant $variant end ==="
+          done
+          exit $status
 
       - name: Prepare failure screenshots
         if: failure()
@@ -103,3 +128,61 @@ jobs:
             sdk/python/packages/flet/integration_tests/${{ matrix.suite }}/**/*_actual.png
             sdk/python/packages/flet/integration_tests/${{ matrix.suite }}/**/*_actual.gif
           if-no-files-found: ignore
+
+  seeded-failures:
+    if: inputs.seeded
+    runs-on: macos-26
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    name: Seeded failures (expected red)
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+
+      - name: Setup Flutter
+        uses: kuhnroyal/flutter-fvm-config-action/setup@c378498f1d1962d33039c3989411093ef8a17b2c # v3.3
+        with:
+          path: '.fvmrc'
+          cache: true
+
+      - name: Build integration test app
+        if: inputs.launch != 'flutter-test'
+        working-directory: client
+        run: |
+          flutter build macos --debug -t integration_test/app_test.dart
+          echo "FLET_TEST_APP_BINARY=$PWD/build/macos/Build/Products/Debug/Flet.app/Contents/MacOS/Flet" >> "$GITHUB_ENV"
+
+      - name: Run seeded failures
+        working-directory: sdk/python
+        shell: bash
+        env:
+          VARIANTS: ${{ inputs.variants }}
+        run: |
+          status=0
+          for variant in $VARIANTS; do
+            echo "=== variant $variant start ==="
+            uv run pytest -s -o log_cli=true -o log_cli_level=INFO packages/flet/seeded_failure_tests 2>&1 | tee "$RUNNER_TEMP/seeded-$variant.log" || status=1
+            echo "=== variant $variant end ==="
+          done
+          exit $status
+
+      - name: Check that every seeded failure was reported in full
+        if: ${{ !cancelled() }}
+        working-directory: sdk/python
+        env:
+          VARIANTS: ${{ inputs.variants }}
+        run: |
+          status=0
+          for variant in $VARIANTS; do
+            echo "=== variant $variant ==="
+            uv run python packages/flet/seeded_failure_tests/check_log.py "$RUNNER_TEMP/seeded-$variant.log" || status=1
+          done
+          exit $status
