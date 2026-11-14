@@ -87,6 +87,7 @@ jobs:
       # tar keeps the symlinks, file modes and the ad hoc signature of the bundle.
       - name: Pack test app
         run: |
+          set -o pipefail
           zstd --version
           du -sh "$APP_BUNDLE_DIR/Flet.app"
           codesign --verify --deep --strict "$APP_BUNDLE_DIR/Flet.app"
@@ -162,6 +163,7 @@ jobs:
       - name: Unpack test app
         if: inputs.layout == 'shared-artifact'
         run: |
+          set -o pipefail
           ls -l "$RUNNER_TEMP/$APP_ARCHIVE"
           xattr -l "$RUNNER_TEMP/$APP_ARCHIVE"
           mkdir -p "$RUNNER_TEMP/flet-test-app"
@@ -182,12 +184,13 @@ jobs:
         env:
           TEST_DIRS: ${{ matrix.dirs }}
         run: |
+          set -o pipefail
           failed=()
           for dir in $TEST_DIRS; do
             echo "::group::$dir"
             uv run pytest -s -o log_cli=true -o log_cli_level=INFO "packages/flet/integration_tests/$dir" 2>&1 | tee "$RUNNER_TEMP/pytest.log" || failed+=("$dir")
             echo "::endgroup::"
-            echo "$dir: $(grep -E '^=+ .* in [0-9.]+s' "$RUNNER_TEMP/pytest.log" | tail -n 1)"
+            echo "$dir: $(grep -E '^=+ .* in [0-9.]+s' "$RUNNER_TEMP/pytest.log" | tail -n 1 | sed -E 's/^=+ //; s/ =+$//')"
           done
           if [ ${#failed[@]} -gt 0 ]; then
             echo "::error::Failed directories: ${failed[*]}"
@@ -211,11 +214,12 @@ jobs:
         env:
           TEST_DIRS: ${{ matrix.extra }}
         run: |
+          set -o pipefail
           for dir in $TEST_DIRS; do
             echo "::group::$dir"
             uv run pytest -s -o log_cli=true -o log_cli_level=INFO "packages/flet/integration_tests/$dir" 2>&1 | tee "$RUNNER_TEMP/pytest.log" || failed=true
             echo "::endgroup::"
-            echo "$dir: $(grep -E '^=+ .* in [0-9.]+s' "$RUNNER_TEMP/pytest.log" | tail -n 1)"
+            echo "$dir: $(grep -E '^=+ .* in [0-9.]+s' "$RUNNER_TEMP/pytest.log" | tail -n 1 | sed -E 's/^=+ //; s/ =+$//')"
           done
           if [ -n "${failed:-}" ]; then
             echo "::warning::Directories outside the verdict failed"
