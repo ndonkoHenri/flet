@@ -1,32 +1,20 @@
 name: macOS Integration Tests
 
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/macos-integration-tests.yml'
-      - 'sdk/python/packages/flet/src/**'
-      - 'sdk/python/packages/flet/integration_tests/**'
-      - 'packages/flet/**'
-      - 'client/**'
-      - '.fvmrc'
   workflow_dispatch:
     inputs:
-      launch:
-        description: "How each test starts the app"
-        type: choice
-        options:
-          - prebuilt
-          - flutter-test
-        default: prebuilt
-      suites:
-        description: "JSON list of suites to run"
-        default: '["apps","examples/apps","examples/controls/core","examples/controls/cupertino","examples/controls/material","examples/extensions","controls/core","controls/cupertino","controls/material","controls/services","controls/theme","extensions"]'
+      dirs:
+        description: "Test directories under integration_tests, separated by spaces"
+        default: "controls/core controls/cupertino controls/material controls/services controls/theme"
+      configs:
+        description: 'JSON list, one job each: k (workers), hide ("1" = hidden windows), cascade ("1" = per-worker window position), serial (dirs run after the pool with one worker), label'
+        default: '[{"k":1}]'
       verbose:
-        description: "Stream the Flutter output of every launch"
+        description: "Write the output of every app launch to the worker logs"
         type: boolean
-        default: false
+        default: true
 
-run-name: "Integration tests: ${{ inputs.launch }}${{ inputs.verbose && ' (verbose)' || '' }}"
+run-name: "Parallel: ${{ inputs.configs }} on ${{ inputs.dirs }}"
 
 env:
   FLET_TEST_SCREENSHOTS_PIXEL_RATIO: "2.0"
@@ -38,15 +26,21 @@ env:
 jobs:
   test-macos:
     runs-on: macos-26
-    timeout-minutes: 330
+    timeout-minutes: 90
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        suite: ${{ fromJSON(inputs.suites) }}
+        cfg: ${{ fromJSON(inputs.configs) }}
 
-    name: ${{ matrix.suite }} Integration Tests
+    name: "K=${{ matrix.cfg.k }} ${{ matrix.cfg.label }}"
+    env:
+      PAR_K: ${{ matrix.cfg.k }}
+      PAR_HIDE: ${{ matrix.cfg.hide }}
+      PAR_CASCADE: ${{ matrix.cfg.cascade }}
+      PAR_SERIAL: ${{ matrix.cfg.serial }}
+      PAR_DIRS: ${{ inputs.dirs }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -75,31 +69,79 @@ jobs:
           sips -g pixelWidth -g pixelHeight /tmp/screen.png
 
       - name: Build integration test app
-        if: inputs.launch != 'flutter-test'
         working-directory: client
         run: |
           flutter build macos --debug -t integration_test/app_test.dart
           echo "FLET_TEST_APP_BINARY=$PWD/build/macos/Build/Products/Debug/Flet.app/Contents/MacOS/Flet" >> "$GITHUB_ENV"
+          echo "PAR_LOG_DIR=$RUNNER_TEMP/par" >> "$GITHUB_ENV"
 
-      - name: Run integration tests (${{ matrix.suite }})
+      - name: Prepare the test environment
         working-directory: sdk/python
         run: |
-          uv run pytest -s -o log_cli=true -o log_cli_level=INFO packages/flet/integration_tests/${{ matrix.suite }}
+          uv run --with pytest-xdist python -c "import xdist; print('xdist', xdist.__version__)"
+          sysctl -n hw.ncpu hw.memsize
+          vm_stat | head -8
 
-      - name: Prepare failure screenshots
-        if: failure()
+      - name: Run integration tests (K=${{ matrix.cfg.k }})
+        working-directory: sdk/python
         run: |
-          SAFE_SUITE="${MATRIX_SUITE//\//-}"
-          echo "SAFE_SUITE=$SAFE_SUITE" >> $GITHUB_ENV
-        env:
-          MATRIX_SUITE: ${{ matrix.suite }}
+          set -o pipefail
+          T=packages/flet/integration_tests
+          pool=(); serial=()
+          for d in $PAR_DIRS; do
+            if [[ " $PAR_SERIAL " == *" $d "* ]]; then serial+=("$T/$d"); else pool+=("$T/$d"); fi
+          done
+          if [ "$PAR_HIDE" = "1" ]; then export FLET_HIDE_WINDOW_ON_START=1; fi
+          export PYTHONPATH="$GITHUB_WORKSPACE/.github/scripts/par"
+          bash "$GITHUB_WORKSPACE/.github/scripts/par/par_sample.sh" "$PAR_LOG_DIR" &
+          sampler=$!
+          common=(--import-mode=importlib -p par_worker_log -o log_level=INFO -v -rfE)
+          rc=0
+          t0=$(date +%s)
+          uv run --with pytest-xdist pytest -n "$PAR_K" --dist loadfile "${common[@]}" "${pool[@]}" || rc=$?
+          t1=$(date +%s)
+          echo "PAR_RESULT phase=pool k=$PAR_K seconds=$((t1 - t0)) rc=$rc"
+          if [ ${#serial[@]} -gt 0 ]; then
+            rc2=0
+            PAR_LOG_DIR="$PAR_LOG_DIR/serial" uv run --with pytest-xdist pytest -n 1 --dist loadfile "${common[@]}" "${serial[@]}" || rc2=$?
+            t2=$(date +%s)
+            echo "PAR_RESULT phase=serial k=1 seconds=$((t2 - t1)) rc=$rc2"
+            if [ $rc -eq 0 ]; then rc=$rc2; fi
+          fi
+          kill $sampler || true
+          echo "PAR_RESULT phase=all k=$PAR_K seconds=$(($(date +%s) - t0)) rc=$rc"
+          exit $rc
 
-      - name: Upload artifact
+      - name: Worker logs (app output filtered)
+        if: always()
+        run: |
+          for f in "$PAR_LOG_DIR"/*.log "$PAR_LOG_DIR"/serial/*.log; do
+            [ -f "$f" ] || continue
+            echo "::group::$f ($(wc -l < "$f") lines)"
+            awk '!/\] flutter: / || /app_lifecycle_state_change|Window state updated|EXCEPTION|Failed assertion|Timeout|Test exception|allTestsPassed/' "$f" | cut -c1-600
+            echo "::endgroup::"
+          done
+
+      - name: Load and memory samples
+        if: always()
+        run: |
+          cat "$PAR_LOG_DIR/samples.csv"
+
+      - name: Upload worker logs, samples and screenshots
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: par-k${{ matrix.cfg.k }}${{ matrix.cfg.label && format('-{0}', matrix.cfg.label) || '' }}
+          path: ${{ runner.temp }}/par
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload failure screenshots
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: integration-test-failures-macos-${{ env.SAFE_SUITE }}
+          name: failures-k${{ matrix.cfg.k }}${{ matrix.cfg.label && format('-{0}', matrix.cfg.label) || '' }}
           path: |
-            sdk/python/packages/flet/integration_tests/${{ matrix.suite }}/**/*_actual.png
-            sdk/python/packages/flet/integration_tests/${{ matrix.suite }}/**/*_actual.gif
+            sdk/python/packages/flet/integration_tests/**/*_actual.png
+            sdk/python/packages/flet/integration_tests/**/*_actual.gif
           if-no-files-found: ignore
