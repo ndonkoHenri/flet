@@ -74,6 +74,11 @@ jobs:
           screencapture /tmp/screen.png
           sips -g pixelWidth -g pixelHeight /tmp/screen.png
 
+      # A crashed app otherwise leaves a "quit unexpectedly" dialog on the
+      # screen, in front of the apps of the tests that follow.
+      - name: Disable the crash report dialog
+        run: defaults write com.apple.CrashReporter DialogType none
+
       - name: Build integration test app
         if: inputs.launch != 'flutter-test'
         working-directory: client
