@@ -17,7 +17,18 @@ on:
         options:
           - prebuilt
           - flutter-test
+          - reuse
         default: prebuilt
+      order:
+        description: "Order of the test files of a suite"
+        type: choice
+        options:
+          - forward
+          - reverse
+        default: forward
+      label:
+        description: "Label shown in the run name"
+        default: ""
       suites:
         description: "JSON list of suites to run"
         default: '["apps","examples/apps","examples/controls/core","examples/controls/cupertino","examples/controls/material","examples/extensions","controls/core","controls/cupertino","controls/material","controls/services","controls/theme","extensions"]'
@@ -26,7 +37,7 @@ on:
         type: boolean
         default: false
 
-run-name: "Integration tests: ${{ inputs.launch }}${{ inputs.verbose && ' (verbose)' || '' }}"
+run-name: "exp/reuse ${{ inputs.label }}: ${{ inputs.launch }}, ${{ inputs.order }}${{ inputs.verbose && ' (verbose)' || '' }}"
 
 env:
   FLET_TEST_SCREENSHOTS_PIXEL_RATIO: "2.0"
@@ -75,16 +86,48 @@ jobs:
           sips -g pixelWidth -g pixelHeight /tmp/screen.png
 
       - name: Build integration test app
-        if: inputs.launch != 'flutter-test'
+        if: inputs.launch == 'prebuilt'
         working-directory: client
         run: |
           flutter build macos --debug -t integration_test/app_test.dart
           echo "FLET_TEST_APP_BINARY=$PWD/build/macos/Build/Products/Debug/Flet.app/Contents/MacOS/Flet" >> "$GITHUB_ENV"
 
+      - name: Build reuse host app
+        if: inputs.launch == 'reuse'
+        working-directory: client
+        run: |
+          flutter build macos --debug -t integration_test_reuse/reuse_host.dart
+          echo "FLET_REUSE_BINARY=$PWD/build/macos/Build/Products/Debug/Flet.app/Contents/MacOS/Flet" >> "$GITHUB_ENV"
+          echo "FLET_REUSE_RESULTS=$RUNNER_TEMP/reuse/results.jsonl" >> "$GITHUB_ENV"
+          echo "FLET_REUSE_LOG_DIR=$RUNNER_TEMP/reuse/logs" >> "$GITHUB_ENV"
+
       - name: Run integration tests (${{ matrix.suite }})
         working-directory: sdk/python
+        env:
+          MATRIX_SUITE: ${{ matrix.suite }}
+          LAUNCH: ${{ inputs.launch }}
+          ORDER: ${{ inputs.order }}
         run: |
-          uv run pytest -s -o log_cli=true -o log_cli_level=INFO packages/flet/integration_tests/${{ matrix.suite }}
+          SUITE_DIR="packages/flet/integration_tests/$MATRIX_SUITE"
+          TARGETS="$SUITE_DIR"
+          if [ "$ORDER" = "reverse" ]; then
+            TARGETS=$(find "$SUITE_DIR" -name 'test_*.py' | sort -r)
+          fi
+          PLUGIN=""
+          if [ "$LAUNCH" = "reuse" ]; then
+            mkdir -p "$FLET_REUSE_LOG_DIR"
+            export PYTHONPATH="$PWD/packages/flet/integration_tests/_reuse"
+            PLUGIN="-p reuse_plugin"
+          fi
+          uv run pytest $PLUGIN -s -o log_cli=true -o log_cli_level=INFO $TARGETS
+
+      - name: Upload reuse results
+        if: always() && inputs.launch == 'reuse'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: reuse-${{ strategy.job-index }}-${{ inputs.order }}
+          path: ${{ runner.temp }}/reuse
+          if-no-files-found: ignore
 
       - name: Prepare failure screenshots
         if: failure()
