@@ -212,6 +212,15 @@ class FlutterWidgetTester implements Tester {
   @override
   Future waitForTeardown() => _teardown.future;
 
+  /// Releases the input state this tester holds between sessions of a reused
+  /// process: the mouse pointer left on screen by [mouseHover] and the
+  /// semantics handle taken by [findBySemanticsIdentifier].
+  Future<void> releaseInput() async {
+    await _mouseExit();
+    _semanticsHandle?.dispose();
+    _semanticsHandle = null;
+  }
+
   Future<void> _mouseExit() async {
     if (_gesture != null) {
       await _gesture?.removePointer();

@@ -41,7 +41,7 @@ const bool isProduction = bool.fromEnvironment('dart.vm.product');
 
 Tester? tester;
 
-void main([List<String>? args]) async {
+Future<void> main([List<String>? args]) async {
   if (isProduction) {
     // ignore: avoid_returning_null_for_void
     debugPrint = (String? message, {int? wrapWidth}) => null;

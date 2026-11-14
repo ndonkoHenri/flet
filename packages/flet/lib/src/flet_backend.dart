@@ -537,6 +537,9 @@ class FletBackend extends ChangeNotifier {
     // EmbeddedWindowService instead.
     if (isDesktopPlatform() && controlId == null) {
       var windowState = await getWindowState();
+      if (_disposed) {
+        return;
+      }
       debugPrint("Window state updated: $windowState");
       var window = page.child("window", visibleOnly: false)!;
       updateControl(window.id, windowState.toMap());
