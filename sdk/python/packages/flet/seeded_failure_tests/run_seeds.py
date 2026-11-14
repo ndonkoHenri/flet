@@ -110,6 +110,7 @@ SEEDS = [
         test="test_app_quits_mid_test",
         what="app exits with code 0 mid-test",
         expect={P: "red", F: "red"},
+        text={P: "did not acknowledge teardown"},
     ),
     dict(
         id="never-connects",

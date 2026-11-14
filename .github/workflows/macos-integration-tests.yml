@@ -25,8 +25,25 @@ on:
         description: "Stream the Flutter output of every launch"
         type: boolean
         default: false
+      job:
+        description: "What to run: the suites, or the seeded failures"
+        type: choice
+        options:
+          - suites
+          - seeded
+        default: suites
+      crash_dialog:
+        description: "CrashReporter DialogType in the seeded job"
+        type: choice
+        options:
+          - none
+          - default
+        default: none
+      note:
+        description: "Free text for the run name"
+        default: ""
 
-run-name: "Integration tests: ${{ inputs.launch }}${{ inputs.verbose && ' (verbose)' || '' }}"
+run-name: "Guards: ${{ inputs.job }}, ${{ inputs.launch }}${{ inputs.verbose && ' (verbose)' || '' }} ${{ inputs.note }}"
 
 env:
   FLET_TEST_SCREENSHOTS_PIXEL_RATIO: "2.0"
@@ -37,8 +54,9 @@ env:
 
 jobs:
   test-macos:
+    if: inputs.job != 'seeded'
     runs-on: macos-26
-    timeout-minutes: 60
+    timeout-minutes: ${{ inputs.launch == 'flutter-test' && 330 || 60 }}
     permissions:
       contents: read
     strategy:
@@ -114,5 +132,76 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: integration-test-crash-reports-macos-${{ env.SAFE_SUITE }}
+          path: ~/Library/Logs/DiagnosticReports/
+          if-no-files-found: ignore
+
+  # Fork only: failures seeded on purpose, one pytest run each, checked
+  # against the outcome expected in the chosen launch mode.
+  seeded-failures:
+    if: inputs.job == 'seeded'
+    runs-on: macos-26
+    timeout-minutes: ${{ inputs.launch == 'flutter-test' && 120 || 30 }}
+    permissions:
+      contents: read
+    name: Seeded failures (${{ inputs.launch }})
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+      - name: Setup Flutter
+        uses: kuhnroyal/flutter-fvm-config-action/setup@c378498f1d1962d33039c3989411093ef8a17b2c # v3.3
+        with:
+          path: '.fvmrc'
+          cache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+      - name: Crash report dialog
+        run: |
+          echo "DialogType before: $(defaults read com.apple.CrashReporter DialogType 2>&1 | tail -1)"
+          if [ "${{ inputs.crash_dialog }}" = "none" ]; then
+            defaults write com.apple.CrashReporter DialogType none
+          fi
+          echo "DialogType now: $(defaults read com.apple.CrashReporter DialogType 2>&1 | tail -1)"
+          ls -la ~/Library/Logs/DiagnosticReports/ 2>&1 | tail -5 || true
+
+      - name: Build integration test app
+        if: inputs.launch != 'flutter-test'
+        working-directory: client
+        run: |
+          flutter build macos --debug -t integration_test/app_test.dart
+          echo "FLET_TEST_APP_BINARY=$PWD/build/macos/Build/Products/Debug/Flet.app/Contents/MacOS/Flet" >> "$GITHUB_ENV"
+
+      - name: Run seeded failures
+        working-directory: sdk/python
+        run: |
+          uv run python packages/flet/seeded_failure_tests/run_seeds.py ${{ inputs.launch }}
+
+      - name: Crash reports and screen after the run
+        if: always()
+        run: |
+          sleep 15
+          ls -la ~/Library/Logs/DiagnosticReports/ || true
+          screencapture -x sdk/python/packages/flet/seeded_failure_tests/seed-logs/after-run.png || true
+          pgrep -fl "Flet.app/Contents/MacOS/Flet|flutter_tools" || echo "no app or flutter tool process left"
+
+      - name: Upload seed logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: seeded-failures-${{ inputs.launch }}
+          path: sdk/python/packages/flet/seeded_failure_tests/seed-logs/
+          if-no-files-found: ignore
+
+      - name: Upload crash reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: seeded-failures-crash-reports-${{ inputs.launch }}
           path: ~/Library/Logs/DiagnosticReports/
           if-no-files-found: ignore
