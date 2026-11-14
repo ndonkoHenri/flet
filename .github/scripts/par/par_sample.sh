@@ -5,7 +5,8 @@
 # last 4 seconds, load average, memory pages by state (MB), swap in use, and
 # the number, summed RSS and summed %CPU of the Flet app processes and of the
 # python processes. Every 30 seconds it also saves a screenshot of the display
-# to "$1/screen-<n>.jpg".
+# to "$1/screen-<n>.jpg" and appends the eight processes that use the most CPU
+# to "$1/top-processes.txt".
 #
 # Runs until it is killed.
 
@@ -38,6 +39,10 @@ while true; do
   n=$((n + 1))
   if [ $((n % 6)) -eq 0 ]; then
     screencapture -x -t jpg "$dir/screen-$(printf '%03d' $((n / 6))).jpg" 2>/dev/null || true
+    {
+      echo "== $ts"
+      ps -axo pcpu=,rss=,comm= | sort -rn | head -8
+    } >> "$dir/top-processes.txt"
   fi
   sleep 1
 done
