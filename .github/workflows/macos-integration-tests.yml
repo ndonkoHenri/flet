@@ -108,3 +108,11 @@ jobs:
             sdk/python/packages/flet/integration_tests/${{ matrix.suite }}/**/*_actual.png
             sdk/python/packages/flet/integration_tests/${{ matrix.suite }}/**/*_actual.gif
           if-no-files-found: ignore
+
+      - name: Upload crash reports
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: integration-test-crash-reports-macos-${{ env.SAFE_SUITE }}
+          path: ~/Library/Logs/DiagnosticReports/
+          if-no-files-found: ignore
