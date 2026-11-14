@@ -10,39 +10,41 @@ on:
       - 'client/**'
       - '.fvmrc'
   workflow_dispatch:
+    inputs:
+      launch:
+        description: "How each test starts the app"
+        type: choice
+        options:
+          - prebuilt
+          - flutter-test
+        default: prebuilt
+      suites:
+        description: "JSON list of suites to run"
+        default: '["apps","examples/apps","examples/controls/core","examples/controls/cupertino","examples/controls/material","examples/extensions","controls/core","controls/cupertino","controls/material","controls/services","controls/theme","extensions"]'
+      verbose:
+        description: "Stream the Flutter output of every launch"
+        type: boolean
+        default: false
 
-# Ensure only one run per ref (pull request or manual dispatch), cancel older ones
-concurrency:
-  group: macos-integration-tests-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+run-name: "Integration tests: ${{ inputs.launch }}${{ inputs.verbose && ' (verbose)' || '' }}"
 
 env:
   FLET_TEST_SCREENSHOTS_PIXEL_RATIO: "2.0"
   FLET_TEST_SCREENSHOTS_SIMILARITY_THRESHOLD: "99.0"
   FLET_TEST_DISABLE_FVM: "1"
   UV_PYTHON: "3.13"
+  FLET_TEST_VERBOSE: ${{ inputs.verbose && '1' || '0' }}
 
 jobs:
   test-macos:
     runs-on: macos-26
+    timeout-minutes: 330
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        suite:
-        - apps
-        - examples/apps
-        - examples/controls/core
-        - examples/controls/cupertino
-        - examples/controls/material
-        - examples/extensions
-        - controls/core
-        - controls/cupertino
-        - controls/material
-        - controls/services
-        - controls/theme
-        - extensions
+        suite: ${{ fromJSON(inputs.suites) }}
 
     name: ${{ matrix.suite }} Integration Tests
     steps:
@@ -73,6 +75,7 @@ jobs:
           sips -g pixelWidth -g pixelHeight /tmp/screen.png
 
       - name: Build integration test app
+        if: inputs.launch != 'flutter-test'
         working-directory: client
         run: |
           flutter build macos --debug -t integration_test/app_test.dart
