@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
@@ -60,7 +61,8 @@ void runFletHostTest({
         "await-main",
         "first-widget",
         "first-widget-100",
-        "first-widget-lazy"
+        "first-widget-lazy",
+        "root-dirty"
       ].contains(startup) ||
       !const ["delay", "immediate"].contains(exitMode)) {
     throw ArgumentError("Unknown FLET_TEST_EXP_STARTUP '$startup' or "
@@ -150,6 +152,19 @@ void runFletHostTest({
         case "first-widget-lazy":
           appMain(args);
           await _pumpUntilAppAttached(fletTester, onlyScheduledFrames: true);
+        case "root-dirty":
+          appMain(args);
+          final waited = Stopwatch()..start();
+          var polls = 0;
+          while (!(WidgetsBinding.instance.rootElement?.dirty ?? false)) {
+            if (waited.elapsed > const Duration(minutes: 1)) {
+              throw TimeoutException("The app did not call runApp.");
+            }
+            await Future<void>.delayed(const Duration(milliseconds: 5));
+            polls++;
+          }
+          debugPrint("Flet host test: root dirty after $polls polls, "
+              "${waited.elapsedMilliseconds} ms");
         default:
           appMain(args);
           await Future.delayed(const Duration(milliseconds: 500));
