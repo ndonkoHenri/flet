@@ -3,6 +3,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
@@ -54,7 +55,13 @@ void runFletHostTest({
   final exitMode = launchedDirectly
       ? Platform.environment["FLET_TEST_EXP_EXIT"] ?? "delay"
       : "delay";
-  if (!const ["fixed", "await-main", "first-widget"].contains(startup) ||
+  if (!const [
+        "fixed",
+        "await-main",
+        "first-widget",
+        "first-widget-100",
+        "first-widget-lazy"
+      ].contains(startup) ||
       !const ["delay", "immediate"].contains(exitMode)) {
     throw ArgumentError("Unknown FLET_TEST_EXP_STARTUP '$startup' or "
         "FLET_TEST_EXP_EXIT '$exitMode'");
@@ -136,6 +143,13 @@ void runFletHostTest({
         case "first-widget":
           appMain(args);
           await _pumpUntilAppAttached(fletTester);
+        case "first-widget-100":
+          appMain(args);
+          await _pumpUntilAppAttached(fletTester,
+              step: const Duration(milliseconds: 100));
+        case "first-widget-lazy":
+          appMain(args);
+          await _pumpUntilAppAttached(fletTester, onlyScheduledFrames: true);
         default:
           appMain(args);
           await Future.delayed(const Duration(milliseconds: 500));
@@ -161,13 +175,23 @@ void runFletHostTest({
 /// an app attached after the last pump would never build and never connect.
 /// Throws when no [FletApp] is attached within [timeout].
 Future<void> _pumpUntilAppAttached(FlutterWidgetTester tester,
-    {Duration timeout = const Duration(minutes: 1)}) async {
+    {Duration timeout = const Duration(minutes: 1),
+    Duration? step,
+    bool onlyScheduledFrames = false}) async {
   final stopwatch = Stopwatch()..start();
+  var frames = 0;
   while (find.byType(FletApp).evaluate().isEmpty) {
     if (stopwatch.elapsed > timeout) {
       throw TimeoutException(
           "The app did not attach a FletApp within $timeout.");
     }
-    await tester.pump();
+    if (onlyScheduledFrames && !SchedulerBinding.instance.hasScheduledFrame) {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      continue;
+    }
+    await tester.pump(duration: step);
+    frames++;
   }
+  debugPrint("Flet host test: app attached after $frames frames, "
+      "${stopwatch.elapsedMilliseconds} ms");
 }
