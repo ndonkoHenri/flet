@@ -1,5 +1,7 @@
 // ignore_for_file: depend_on_referenced_packages
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -27,11 +29,25 @@ import 'flutter_tester.dart';
 /// attached, reads them from environment variables of the same names and
 /// ends the process when the test completes: exit code 0 if it passed, 1 if
 /// it failed.
+///
+/// A directly launched app ends as soon as the test result is known, so it
+/// prints with [debugPrintSynchronously]: the live test binding throttles
+/// `debugPrint`, and output still queued at that moment, such as the end of
+/// an exception report, would be lost. Under `flutter test` the process
+/// waits 2 seconds before it ends, which gives the tool's device-log relay
+/// time to pass the exception report on.
 void runFletHostTest({
   required void Function(List<String>) appMain,
   required void Function(Tester) assignTester,
 }) {
   var binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+
+  final launchedDirectly =
+      const String.fromEnvironment("FLET_TEST_APP_URL") == "" &&
+          (Platform.environment["FLET_TEST_APP_URL"] ?? "") != "";
+  if (launchedDirectly) {
+    debugPrint = debugPrintSynchronously;
+  }
 
   // With the integration_test binding `flutter test` prints only
   // "Test failed. See exception logs above." without ever printing the
@@ -46,19 +62,16 @@ void runFletHostTest({
   };
   debugPrint("Flet host test: exception reporter installed");
 
-  final launchedDirectly =
-      const String.fromEnvironment("FLET_TEST_APP_URL") == "" &&
-          (Platform.environment["FLET_TEST_APP_URL"] ?? "") != "";
   if (launchedDirectly) {
     binding.allTestsPassed.future.then((passed) => exit(passed ? 0 : 1));
+  } else {
+    tearDownAll(() async {
+      // Exceptions are reported when the test body completes, moments before
+      // the app process exits; give the device-log relay time to flush them
+      // so they are not lost from the `flutter test` output.
+      await Future.delayed(const Duration(seconds: 2));
+    });
   }
-
-  tearDownAll(() async {
-    // Exceptions are reported when the test body completes, moments before
-    // the app process exits; give the device-log relay time to flush them so
-    // they are not lost from the `flutter test` output.
-    await Future.delayed(const Duration(seconds: 2));
-  });
 
   group('end-to-end test', () {
     testWidgets('test app', (tester) async {
@@ -92,11 +105,35 @@ void runFletHostTest({
 
       appMain(args);
 
-      await Future.delayed(const Duration(milliseconds: 500));
-      await fletTester.pump(duration: const Duration(seconds: 1));
+      await _waitForRunApp(binding);
       await fletTester.pumpAndSettle(
           duration: const Duration(milliseconds: 100));
       await fletTester.waitForTeardown();
     });
   });
+}
+
+/// Waits until the host app has called `runApp`.
+///
+/// The host app's `main` is asynchronous and calls `runApp` only after its
+/// own start-up work, such as setting up the desktop window. The live test
+/// binding draws a frame only while a pump is in progress, so the first
+/// settle must not begin before `runApp` has run: an app attached after the
+/// last pump would never build and never connect.
+///
+/// The test binding has attached a root widget of its own before the test
+/// body runs, so `runApp` hands the root element a new widget and leaves it
+/// dirty until the next frame. Polling for that draws no frame: frames
+/// drawn before the app is attached change, in the last decimals of a
+/// screenshot comparison, how some controls render afterwards. Throws when
+/// the app has not called `runApp` within [timeout].
+Future<void> _waitForRunApp(IntegrationTestWidgetsFlutterBinding binding,
+    {Duration timeout = const Duration(minutes: 1)}) async {
+  final stopwatch = Stopwatch()..start();
+  while (!(binding.rootElement?.dirty ?? false)) {
+    if (stopwatch.elapsed > timeout) {
+      throw TimeoutException("The app did not call runApp within $timeout.");
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+  }
 }
